@@ -1,0 +1,6 @@
+{
+  "name": "Salim Gümüş — Manifesto",
+  "description": "Salim Gümüş karakter manifestosu ve felsefesi: interaktif fener aydınlatması, kor parçacıkları, kül dağılma efekti ve atmosferik ses tasarımı ile karanlık monolog deneyimi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

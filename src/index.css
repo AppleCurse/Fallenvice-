@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --void: #040303;
+    --bone: #f5eedf;
+    --ember: #b8884a;
+    --ember-bright: #e5a758;
+    --whisper: #c5a26f;
+    --mx: 50vw;
+    --my: 50vh;
+  }
+
+  body {
+    background-color: #050403;
+    color: #f5eedf;
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    overflow-x: hidden;
+  }
+}
+
+/* ═══ Film Grain Texture ═══ */
+.film-grain {
+  position: fixed;
+  inset: -50%;
+  width: 200%;
+  height: 200%;
+  opacity: 0.15;
+  pointer-events: none;
+  z-index: 2;
+  mix-blend-mode: overlay;
+  background: repeating-conic-gradient(#2a2420 0% 25%, transparent 0% 50%) 0 0/3px 3px;
+  animation: grainShift 0.4s steps(3) infinite;
+}
+
+@keyframes grainShift {
+  0% { transform: translate(0, 0); }
+  33% { transform: translate(-2px, 1px); }
+  66% { transform: translate(1px, -2px); }
+  100% { transform: translate(0, 0); }
+}
+
+/* ═══ Glowing Ember Cursor ═══ */
+#kor {
+  position: fixed;
+  pointer-events: none;
+  z-index: 101;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ember-bright);
+  box-shadow: 0 0 14px var(--ember-bright), 0 0 32px rgba(229, 167, 88, 0.6);
+  transform: translate(-50%, -50%);
+  mix-blend-mode: screen;
+  transition: width 0.25s ease, height 0.25s ease, box-shadow 0.25s ease;
+  left: var(--mx);
+  top: var(--my);
+}
+
+#kor.kor-buyuk {
+  width: 16px;
+  height: 16px;
+  background: #f7b463;
+  box-shadow: 0 0 28px #f7b463, 0 0 65px rgba(247, 180, 99, 0.7);
+}
+
+/* Focus glow for emphasized manifesto statements */
+.text-shadow-vurgu {
+  text-shadow: 0 0 20px rgba(229, 167, 88, 0.5), 0 0 40px rgba(184, 136, 74, 0.3);
+}
+
+/* ═══ Reading Wick (Fitil) ═══ */
+#fitil {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 3px;
+  height: 0%;
+  background: linear-gradient(to bottom, transparent, var(--ember-bright), #ff7a00, var(--ember-bright), transparent);
+  z-index: 90;
+  box-shadow: 0 0 10px rgba(229, 167, 88, 0.7);
+  pointer-events: none;
+}
+
+/* ═══ Typographic Classes ═══ */
+.unicase {
+  font-family: 'Cormorant Unicase', Georgia, serif;
+}
+
+.garamond {
+  font-family: 'Cormorant Garamond', Georgia, serif;
+}
+
+.inter-ui {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #040303;
+}
+::-webkit-scrollbar-thumb {
+  background: #3a2e20;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #b8884a;
+}
+
