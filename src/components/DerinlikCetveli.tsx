@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
 interface ChapterLayer {
   percent: number;
@@ -7,6 +7,7 @@ interface ChapterLayer {
   targetId: string;
 }
 
+// percent values are fallbacks only — real positions are measured from the DOM.
 const MANIFESTO_CHAPTERS: ChapterLayer[] = [
   { percent: 0, name: 'Başlangıç (Giriş)', shortName: '%0 — Başlangıç', targetId: 'hero' },
   { percent: 12, name: 'Kapı I — Şeytan & Pabuç', shortName: '%12 — Kapı I', targetId: 'kapi-1' },
@@ -30,11 +31,42 @@ export const DerinlikCetveli: React.FC<DerinlikCetveliProps> = ({
 }) => {
   const currentProgress = Math.min(100, Math.max(0, Math.round(readingProgress)));
 
+  // Measure the real position of each chapter in the document instead of
+  // trusting hardcoded percentages that drift whenever content changes.
+  const [layers, setLayers] = useState<ChapterLayer[]>(MANIFESTO_CHAPTERS);
+
+  useEffect(() => {
+    const measure = () => {
+      const doc = document.documentElement;
+      const total = doc.scrollHeight - window.innerHeight;
+      if (total <= 0) return;
+
+      const measured = MANIFESTO_CHAPTERS.map((chapter) => {
+        const el = document.getElementById(chapter.targetId);
+        if (!el) return chapter;
+        const top = el.getBoundingClientRect().top + window.scrollY;
+        const raw = (Math.min(top, total) / total) * 100;
+        const percent = Math.max(0, Math.min(100, Math.round(raw)));
+        return { ...chapter, percent, shortName: `%${percent} — ${chapter.shortName.split('— ')[1]}` };
+      });
+      setLayers(measured);
+    };
+
+    measure();
+    // Re-measure once webfonts settle and layout stabilizes.
+    const t = window.setTimeout(measure, 900);
+    window.addEventListener('resize', measure);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener('resize', measure);
+    };
+  }, []);
+
   // Find active manifesto chapter
-  let activeChapter = MANIFESTO_CHAPTERS[0];
-  for (let i = MANIFESTO_CHAPTERS.length - 1; i >= 0; i--) {
-    if (currentProgress >= MANIFESTO_CHAPTERS[i].percent) {
-      activeChapter = MANIFESTO_CHAPTERS[i];
+  let activeChapter = layers[0];
+  for (let i = layers.length - 1; i >= 0; i--) {
+    if (currentProgress >= layers[i].percent) {
+      activeChapter = layers[i];
       break;
     }
   }
@@ -72,7 +104,7 @@ export const DerinlikCetveli: React.FC<DerinlikCetveliProps> = ({
             const isTerminal = p === 100;
             const isTarget = isMajor || isTerminal;
 
-            const chapterMatch = MANIFESTO_CHAPTERS.find(
+            const chapterMatch = layers.find(
               (c) => Math.abs(c.percent - p) <= 3
             );
 

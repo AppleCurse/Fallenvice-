@@ -2,15 +2,23 @@ import React, { useEffect, useRef, useState } from 'react';
 import { soundEngine } from '../../audio/soundEngine';
 
 export const GravityFallScene: React.FC = () => {
-  const [isFallen, setIsFallen] = useState(true);
+  // Start unfallen: when the scene scrolls into view, gravity pulls the
+  // letters down into place — the effect the component was designed for.
+  const [isFallen, setIsFallen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const fallTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            setIsFallen(true);
+            if (fallTimeoutRef.current) return;
+            fallTimeoutRef.current = window.setTimeout(() => {
+              setIsFallen(true);
+              soundEngine.playParchmentRustle(0.8);
+              fallTimeoutRef.current = null;
+            }, 400);
           }
         });
       },
@@ -21,23 +29,39 @@ export const GravityFallScene: React.FC = () => {
       observer.observe(containerRef.current);
     }
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (fallTimeoutRef.current) {
+        clearTimeout(fallTimeoutRef.current);
+        fallTimeoutRef.current = null;
+      }
+    };
   }, []);
 
-  const handleReplay = (e: React.MouseEvent) => {
+  const replay = (clientX: number, clientY: number) => {
     setIsFallen(false);
     soundEngine.playParchmentRustle(0.9);
 
     window.dispatchEvent(
       new CustomEvent('trigger-ash', {
-        detail: { x: e.clientX, y: e.clientY, count: 24 },
+        detail: { x: clientX, y: clientY, count: 24 },
       })
     );
 
     setTimeout(() => {
       setIsFallen(true);
       soundEngine.playEmberStrike();
-    }, 200);
+    }, 600);
+  };
+
+  const handleReplay = (e: React.MouseEvent) => replay(e.clientX, e.clientY);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      const rect = containerRef.current?.getBoundingClientRect();
+      replay(rect ? rect.left + rect.width / 2 : window.innerWidth / 2, rect ? rect.top + rect.height / 2 : window.innerHeight / 2);
+    }
   };
 
   const text = 'Kahramanlar hikâyeyi ilerletir.';
@@ -47,6 +71,10 @@ export const GravityFallScene: React.FC = () => {
     <div
       ref={containerRef}
       onClick={handleReplay}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
+      aria-label="Yerçekimini yeniden tetikle"
       className="dusus aydinlan my-12 text-center py-6 select-none cursor-pointer group"
       title="Yerçekimini yeniden başlatmak için tıkla"
     >

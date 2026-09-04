@@ -335,17 +335,41 @@ class SoundEngine {
       this.chimeTimeout = null;
     }
 
+    this.isPlaying = false;
+
     if (this.masterGain && this.audioCtx) {
-      const now = this.audioCtx.currentTime;
-      this.masterGain.gain.setValueAtTime(this.masterGain.gain.value, now);
-      this.masterGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.8);
-      setTimeout(() => {
-        this.cleanupNodes();
+      // Capture the retiring graph locally and detach all references NOW,
+      // so a rapid stop() → start() pair builds its fresh AudioContext
+      // without the delayed cleanup killing the new one.
+      const ctx = this.audioCtx;
+      const master = this.masterGain;
+      const nodes = this.activeNodes;
+      this.audioCtx = null;
+      this.masterGain = null;
+      this.activeNodes = [];
+
+      const now = ctx.currentTime;
+      master.gain.cancelScheduledValues(now);
+      master.gain.setValueAtTime(Math.max(master.gain.value, 0.0001), now);
+      master.gain.exponentialRampToValueAtTime(0.0001, now + 0.8);
+
+      window.setTimeout(() => {
+        nodes.forEach((node) => {
+          try {
+            node.stop();
+          } catch {
+            // Node already stopped
+          }
+        });
+        try {
+          ctx.close();
+        } catch {
+          // Context already closed
+        }
       }, 900);
     } else {
       this.cleanupNodes();
     }
-    this.isPlaying = false;
   }
 
   private cleanupNodes() {

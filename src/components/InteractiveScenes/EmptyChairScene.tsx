@@ -1,23 +1,43 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { soundEngine } from '../../audio/soundEngine';
 
 export const EmptyChairScene: React.FC = () => {
   const [isPulled, setIsPulled] = useState(false);
 
-  const handleChairClick = (e: React.MouseEvent) => {
+  const pullChair = (clientX: number, clientY: number) => {
     setIsPulled((prev) => !prev);
     soundEngine.playEmberStrike();
 
     window.dispatchEvent(
       new CustomEvent('trigger-ash', {
-        detail: { x: e.clientX, y: e.clientY, count: 20 },
+        detail: { x: clientX, y: clientY, count: 20 },
       })
     );
   };
 
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  const handleChairClick = (e: React.MouseEvent) => pullChair(e.clientX, e.clientY);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      const rect = containerRef.current?.getBoundingClientRect();
+      pullChair(
+        rect ? rect.left + rect.width / 2 : window.innerWidth / 2,
+        rect ? rect.top + rect.height / 2 : window.innerHeight / 2,
+      );
+    }
+  };
+
   return (
     <div
+      ref={containerRef}
       onClick={handleChairClick}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
+      aria-label="İskemleyi çek"
       className="sandalye-sahne aydinlan my-16 py-10 flex flex-col md:flex-row items-center justify-center gap-10 md:gap-14 text-center md:text-left transition-all duration-500 cursor-pointer select-none group"
       title="İskemleye dokun"
     >

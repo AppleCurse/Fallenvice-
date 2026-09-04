@@ -6,12 +6,6 @@ export interface ChapterItem {
   category?: 'chapter' | 'codex' | 'closing';
 }
 
-export interface WhisperQuote {
-  id: string;
-  text: string;
-  sourceChapter?: string;
-}
-
 export interface TraitItem {
   no: string;
   title: string;

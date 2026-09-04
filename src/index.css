@@ -95,6 +95,155 @@
   font-family: 'Inter', system-ui, sans-serif;
 }
 
+/* ═══ Breathing Vignette ═══ */
+.vignette-breath {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 3;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 40%,
+    rgba(3, 2, 2, 0.5) 74%,
+    rgba(1, 0, 0, 0.82) 100%
+  );
+  animation: vignetteBreath 9s ease-in-out infinite;
+}
+
+@keyframes vignetteBreath {
+  0%, 100% { opacity: 0.72; }
+  50% { opacity: 1; }
+}
+
+/* ═══ Lantern Mode (Fener) — spotlight following the cursor ═══ */
+#fener {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  background: radial-gradient(
+    circle 340px at var(--mx) var(--my),
+    rgba(229, 167, 88, 0.07) 0%,
+    rgba(5, 3, 2, 0.32) 38%,
+    rgba(3, 2, 2, 0.88) 72%,
+    rgba(2, 1, 1, 0.97) 100%
+  );
+  opacity: 0;
+  transition: opacity 1200ms ease;
+}
+
+#fener.aktif {
+  opacity: 1;
+}
+
+/* ═══ Parallax Ghost Typography Layers ═══ */
+.parallax-layer {
+  position: fixed;
+  left: 50%;
+  z-index: 0;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+  font-family: 'Cormorant Unicase', Georgia, serif;
+  font-weight: 300;
+  color: rgba(229, 167, 88, 0.022);
+  -webkit-text-stroke: 1px rgba(184, 136, 74, 0.08);
+  text-shadow: 0 0 80px rgba(229, 167, 88, 0.05);
+  letter-spacing: 0.1em;
+  line-height: 1;
+}
+
+.parallax-layer-1 {
+  top: 7vh;
+  font-size: 21vw;
+  transform: translateX(-50%) translateY(calc(var(--sy, 0) * -0.05px));
+}
+
+.parallax-layer-2 {
+  top: 44vh;
+  font-size: 23vw;
+  transform: translateX(-50%) translateY(calc(var(--sy, 0) * 0.045px));
+}
+
+.parallax-layer-3 {
+  top: 24vh;
+  font-size: 15vw;
+  transform: translateX(-50%) translateY(calc(var(--sy, 0) * -0.09px));
+}
+
+/* ═══ Scroll Reveal Choreography (Aydınlanma) ═══ */
+.aydinlan {
+  opacity: 0;
+  transform: translateY(30px);
+  filter: blur(7px);
+  transition:
+    opacity 1100ms ease-out,
+    transform 1100ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 1100ms ease-out;
+  will-change: opacity, transform, filter;
+}
+
+.aydinlandi {
+  opacity: 1;
+  transform: translateY(0);
+  filter: blur(0);
+}
+
+/* ═══ Passage Micro-interactions ═══ */
+[data-kul='gecti'] {
+  transition: transform 400ms ease;
+}
+
+[data-kul='gecti']:hover {
+  transform: translateY(-3px);
+}
+
+[data-kul='gecti']:active {
+  transform: scale(0.985);
+}
+
+/* ═══ Focus & Selection ═══ */
+:focus-visible {
+  outline: 2px solid var(--ember-bright);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+::selection {
+  background: rgba(229, 167, 88, 0.35);
+  color: #fff8ee;
+}
+
+/* ═══ Reduced Motion Respect ═══ */
+@media (prefers-reduced-motion: reduce) {
+  .aydinlan {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    transition: none;
+  }
+  .film-grain,
+  .vignette-breath {
+    animation: none;
+  }
+  .parallax-layer {
+    transform: translateX(-50%);
+  }
+  [data-kul='gecti'],
+  [data-kul='gecti']:hover,
+  [data-kul='gecti']:active {
+    transition: none;
+    transform: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 5px;

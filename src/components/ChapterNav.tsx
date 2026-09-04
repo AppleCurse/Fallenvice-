@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { CHAPTERS_INDEX } from '../data/manifesto';
 import { soundEngine } from '../audio/soundEngine';
 import { Volume2, VolumeX, Compass, Eye, Sparkles, X, Check, Search } from 'lucide-react';
@@ -6,6 +6,8 @@ import { Volume2, VolumeX, Compass, Eye, Sparkles, X, Check, Search } from 'luci
 interface ChapterNavProps {
   readingProgress: number;
   lanternMode: boolean;
+  isAudioOn: boolean;
+  onToggleAudio: () => void;
   onToggleLantern: () => void;
   onSelectChapter: (id: string) => void;
 }
@@ -13,30 +15,53 @@ interface ChapterNavProps {
 export const ChapterNav: React.FC<ChapterNavProps> = ({
   readingProgress,
   lanternMode,
+  isAudioOn,
+  onToggleAudio,
   onToggleLantern,
   onSelectChapter,
 }) => {
-  const [isPlayingSound, setIsPlayingSound] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [copiedQuote, setCopiedQuote] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
-  const toggleSound = async () => {
-    if (isPlayingSound) {
-      soundEngine.stop();
-      setIsPlayingSound(false);
-    } else {
-      const ok = await soundEngine.start();
-      if (ok) setIsPlayingSound(true);
-    }
-  };
+  // Dialog accessibility: Escape closes, focus moves into the search field
+  useEffect(() => {
+    if (!isMenuOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsMenuOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    searchInputRef.current?.focus();
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isMenuOpen]);
 
-  const handleCopyManifesto = () => {
+  const handleCopyManifesto = async () => {
     const text = `Salim Gümüş — O bir kahraman değil, bir yerçekimi.\n"Birinden vazgeçtiğinde kapı kapanmaz, kilit değişir."`;
-    navigator.clipboard.writeText(text);
-    soundEngine.playEmberStrike();
-    setCopiedQuote(true);
-    setTimeout(() => setCopiedQuote(false), 2500);
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(text);
+      copied = true;
+    } catch {
+      // Clipboard API unavailable (insecure context / permission) — legacy fallback
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        copied = document.execCommand('copy');
+        document.body.removeChild(textarea);
+      } catch {
+        copied = false;
+      }
+    }
+    if (copied) {
+      soundEngine.playEmberStrike();
+      setCopiedQuote(true);
+      setTimeout(() => setCopiedQuote(false), 2500);
+    }
   };
 
   const filteredChapters = CHAPTERS_INDEX.filter(
@@ -90,21 +115,22 @@ export const ChapterNav: React.FC<ChapterNavProps> = ({
 
           {/* Ses Kontrol */}
           <button
-            onClick={toggleSound}
-            title={isPlayingSound ? 'Sesi Durdur' : 'Odanın Sesini Başlat (Rüzgâr, Kor, Çan)'}
+            onClick={onToggleAudio}
+            aria-pressed={isAudioOn}
+            title={isAudioOn ? 'Sesi Durdur' : 'Odanın Sesini Başlat (Rüzgâr, Kor, Çan)'}
             className={`p-1.5 rounded-full transition-all text-xs flex items-center gap-1.5 cursor-pointer ${
-              isPlayingSound
+              isAudioOn
                 ? 'text-[#e5a758] bg-[rgba(184,136,74,0.15)] animate-pulse'
                 : 'text-[#7a6f60] hover:text-[#e8dfd0]'
             }`}
           >
-            {isPlayingSound ? (
+            {isAudioOn ? (
               <Volume2 className="w-3.5 h-3.5" />
             ) : (
               <VolumeX className="w-3.5 h-3.5" />
             )}
             <span className="hidden md:inline text-[10px] inter-ui uppercase tracking-wider">
-              {isPlayingSound ? 'Ses Açık' : 'Sessiz'}
+              {isAudioOn ? 'Ses Açık' : 'Sessiz'}
             </span>
           </button>
 
@@ -148,8 +174,17 @@ export const ChapterNav: React.FC<ChapterNavProps> = ({
 
       {/* Chapters Index Drawer */}
       {isMenuOpen && (
-        <div className="fixed inset-0 z-[150] bg-[rgba(4,3,3,0.92)] backdrop-blur-xl flex items-center justify-center p-4">
-          <div className="relative w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border border-[rgba(184,136,74,0.25)] bg-[#090706] p-6 sm:p-8 shadow-[0_10px_60px_rgba(0,0,0,0.9)]">
+        <div
+          className="fixed inset-0 z-[150] bg-[rgba(4,3,3,0.92)] backdrop-blur-xl flex items-center justify-center p-4"
+          onClick={() => setIsMenuOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Bölümler ve Yasalar Dizini"
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl border border-[rgba(184,136,74,0.25)] bg-[#090706] p-6 sm:p-8 shadow-[0_10px_60px_rgba(0,0,0,0.9)]"
+          >
             <div className="flex items-center justify-between border-b border-[#2a2218] pb-4 mb-4">
               <div>
                 <h3 className="unicase text-xl text-[#e8dfd0] tracking-widest font-light">
@@ -171,6 +206,7 @@ export const ChapterNav: React.FC<ChapterNavProps> = ({
             <div className="relative mb-4">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[#7a6f60]" />
               <input
+                ref={searchInputRef}
                 type="text"
                 placeholder="Bölüm veya yasa ara..."
                 value={searchQuery}

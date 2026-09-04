@@ -5,6 +5,7 @@ import { SecretWhispers } from './components/SecretWhispers';
 import { ChapterNav } from './components/ChapterNav';
 import { DerinlikCetveli } from './components/DerinlikCetveli';
 import { ManifestoVurgusu } from './components/ManifestoVurgusu';
+import { OpeningRitual } from './components/OpeningRitual';
 import { EmptyChairScene } from './components/InteractiveScenes/EmptyChairScene';
 import { LockScene } from './components/InteractiveScenes/LockScene';
 import { TiresScene } from './components/InteractiveScenes/TiresScene';
@@ -13,9 +14,13 @@ import { YEDI_OZELLIK, DORT_YASA } from './data/manifesto';
 import { soundEngine } from './audio/soundEngine';
 
 export default function App() {
-  const [hasEntered, setHasEntered] = useState(true);
+  const [hasEntered, setHasEntered] = useState(false);
   const [readingProgress, setReadingProgress] = useState(0);
   const [lanternMode, setLanternMode] = useState(false);
+  const [isAudioOn, setIsAudioOn] = useState(false);
+  const [finePointer, setFinePointer] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches,
+  );
   const [cursorPos, setCursorPos] = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
   const [isCursorLarge, setIsCursorLarge] = useState(false);
 
@@ -25,6 +30,14 @@ export default function App() {
     sx: window.innerWidth / 2,
     sy: window.innerHeight / 2,
   });
+
+  // React to pointer-type changes (desktop ↔ touch) instead of a stale render-time check
+  useEffect(() => {
+    const mq = window.matchMedia('(pointer: fine)');
+    const handler = (e: MediaQueryListEvent) => setFinePointer(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   // Track cursor and smooth interpolation for lantern
   useEffect(() => {
@@ -67,10 +80,11 @@ export default function App() {
     };
   }, []);
 
-  // Track scroll progress for reading wick (fitil)
+  // Track scroll progress for reading wick (fitil) + feed parallax ghost layers
   useEffect(() => {
     const handleScroll = () => {
       const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
+      document.documentElement.style.setProperty('--sy', `${window.scrollY}`);
       if (totalHeight > 0) {
         const progress = Math.min((window.scrollY / totalHeight) * 100, 100);
         setReadingProgress(progress);
@@ -87,13 +101,29 @@ export default function App() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Ensure all texts are 100% visible
+  // Scroll-reveal choreography: ignite passages as they enter the viewport
   useEffect(() => {
-    const elements = document.querySelectorAll<HTMLElement>('.aydinlan, .soz, .kapi, .hukum');
-    elements.forEach((el) => {
-      el.style.opacity = '1';
-    });
-  }, [lanternMode]);
+    if (!hasEntered) return;
+
+    const targets = document.querySelectorAll<HTMLElement>('.aydinlan, .vurgu-kapsayici');
+    if (!targets.length) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('aydinlandi');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { rootMargin: '0px 0px -10% 0px', threshold: 0.06 },
+    );
+
+    targets.forEach((el) => observer.observe(el));
+
+    return () => observer.disconnect();
+  }, [hasEntered]);
 
   // Track chapters/doors visibility for subtle parchment rustle atmospheric sound
   const lastSectionRef = useRef<string>('');
@@ -135,6 +165,18 @@ export default function App() {
     };
   }, [hasEntered]);
 
+  // Single source of truth for audio — nav button and M key share this,
+  // so the UI indicator can never diverge from the engine state.
+  const toggleAudio = async () => {
+    if (soundEngine.getIsPlaying()) {
+      soundEngine.stop();
+      setIsAudioOn(false);
+    } else {
+      const ok = await soundEngine.start();
+      setIsAudioOn(Boolean(ok));
+    }
+  };
+
   // Keyboard shortcuts (L: Lantern, M: Audio)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -143,16 +185,19 @@ export default function App() {
         setLanternMode((prev) => !prev);
       }
       if (e.key === 'm' || e.key === 'M') {
-        if (soundEngine.getIsPlaying()) {
-          soundEngine.stop();
-        } else {
-          soundEngine.start();
-        }
+        void toggleAudio();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  const handleEnter = () => {
+    setHasEntered(true);
+    // Opening ritual ignites audio on user gesture; sync indicator state.
+    setIsAudioOn(soundEngine.getIsPlaying());
+    window.scrollTo({ top: 0 });
+  };
 
   const handleSelectChapter = (id: string) => {
     const el = document.getElementById(id);
@@ -176,9 +221,12 @@ export default function App() {
   return (
     <div
       className={`min-h-screen bg-[#040303] text-[#f5eedf] relative ${
-        window.innerWidth > 768 ? 'cursor-none' : 'cursor-auto'
+        finePointer ? 'cursor-none' : 'cursor-auto'
       }`}
     >
+      {/* 0. Opening Ritual — the match ignition that starts everything (incl. audio) */}
+      {!hasEntered && <OpeningRitual onEnter={handleEnter} />}
+
       {/* 2. Living Breathing Vignette & Film Grain */}
       <div className="vignette-breath" aria-hidden="true" />
       <div className="film-grain" aria-hidden="true" />
@@ -211,12 +259,14 @@ export default function App() {
       <AshDissolveCanvas />
 
       {/* 4. Interactive Lantern & Glowing Cursor Point */}
-      {lanternMode && <div id="fener" aria-hidden="true" />}
-      <div
-        id="kor"
-        className={isCursorLarge ? 'kor-buyuk' : ''}
-        aria-hidden="true"
-      />
+      <div id="fener" className={lanternMode ? 'aktif' : ''} aria-hidden="true" />
+      {finePointer && (
+        <div
+          id="kor"
+          className={isCursorLarge ? 'kor-buyuk' : ''}
+          aria-hidden="true"
+        />
+      )}
 
       {/* 5. Reading Wick (Fitil) on Left Margin */}
       <div id="fitil" aria-hidden="true" />
@@ -234,6 +284,8 @@ export default function App() {
       <ChapterNav
         readingProgress={readingProgress}
         lanternMode={lanternMode}
+        isAudioOn={isAudioOn}
+        onToggleAudio={toggleAudio}
         onToggleLantern={() => setLanternMode((prev) => !prev)}
         onSelectChapter={handleSelectChapter}
       />

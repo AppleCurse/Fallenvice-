@@ -32,15 +32,20 @@ export const FloatingEmbersCanvas: React.FC = () => {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let width = (canvas.width = window.innerWidth);
-    let height = (canvas.height = window.innerHeight);
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Cap DPR at 2: retina-crisp embers without quadruple fill cost on 3x screens.
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-    const handleResize = () => {
-      if (!canvas) return;
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
+    let width = 0;
+    let height = 0;
+
+    const applySize = () => {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     };
-    window.addEventListener('resize', handleResize);
 
     const createTane = (randomY = true): Tane => ({
       x: Math.random() * width,
@@ -57,6 +62,37 @@ export const FloatingEmbersCanvas: React.FC = () => {
 
     const embers: Tane[] = Array.from({ length: 32 }, () => createTane(true));
     let smokePuffs: Smoke[] = [];
+
+    const drawTane = (t: Tane, alpha: number) => {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = `hsl(${t.hue}, 70%, 55%)`;
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = 'rgba(184, 136, 74, 0.45)';
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, t.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    };
+
+    const renderStatic = () => {
+      ctx.clearRect(0, 0, width, height);
+      embers.forEach((t) => drawTane(t, Math.max(0, t.life * 0.55)));
+    };
+
+    applySize();
+
+    const handleResize = () => {
+      applySize();
+      if (reduceMotion) renderStatic();
+    };
+    window.addEventListener('resize', handleResize);
+
+    // Reduced motion: a single calm, static ember field — no loop, no cursor smoke.
+    if (reduceMotion) {
+      renderStatic();
+      return () => window.removeEventListener('resize', handleResize);
+    }
 
     const handleMouseMove = (e: MouseEvent) => {
       if (Math.random() > 0.65) {
@@ -77,7 +113,7 @@ export const FloatingEmbersCanvas: React.FC = () => {
 
     window.addEventListener('mousemove', handleMouseMove, { passive: true });
 
-    let animationFrameId: number;
+    let animationFrameId = 0;
 
     const render = () => {
       ctx.clearRect(0, 0, width, height);
@@ -95,15 +131,7 @@ export const FloatingEmbersCanvas: React.FC = () => {
           continue;
         }
 
-        ctx.save();
-        ctx.globalAlpha = Math.max(0, t.life * 0.55);
-        ctx.fillStyle = `hsl(${t.hue}, 70%, 55%)`;
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = 'rgba(184, 136, 74, 0.45)';
-        ctx.beginPath();
-        ctx.arc(t.x, t.y, t.size, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
+        drawTane(t, Math.max(0, t.life * 0.55));
       }
 
       // Render & update smoke puffs
