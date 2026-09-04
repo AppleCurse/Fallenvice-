@@ -12,11 +12,20 @@ export const SecretWhispers: React.FC<SecretWhispersProps> = ({ cursorX, cursorY
   const [isVisible, setIsVisible] = useState(false);
   const lastInteractionRef = useRef(Date.now());
   const timerRef = useRef<number | null>(null);
+  // Keep cursor in a ref so the interval is created exactly once instead of
+  // being torn down and recreated on every pixel of mouse movement.
+  const cursorRef = useRef({ x: cursorX, y: cursorY });
+  const visibleRef = useRef(false);
+
+  useEffect(() => {
+    cursorRef.current = { x: cursorX, y: cursorY };
+  }, [cursorX, cursorY]);
 
   useEffect(() => {
     const handleMove = () => {
       lastInteractionRef.current = Date.now();
-      if (isVisible) {
+      if (visibleRef.current) {
+        visibleRef.current = false;
         setIsVisible(false);
       }
     };
@@ -26,10 +35,12 @@ export const SecretWhispers: React.FC<SecretWhispersProps> = ({ cursorX, cursorY
     window.addEventListener('scroll', handleMove, { passive: true });
 
     timerRef.current = window.setInterval(() => {
+      if (document.hidden) return; // don't whisper into a background tab
+
       const isMobile = window.innerWidth <= 768;
       const idleTime = Date.now() - lastInteractionRef.current;
 
-      if (idleTime > 4200 && !isVisible) {
+      if (idleTime > 5200 && !visibleRef.current) {
         const randomQuote =
           SECRET_WHISPERS[Math.floor(Math.random() * SECRET_WHISPERS.length)];
         setActiveWhisper(randomQuote);
@@ -41,13 +52,14 @@ export const SecretWhispers: React.FC<SecretWhispersProps> = ({ cursorX, cursorY
           });
         } else {
           setWhisperPos({
-            x: cursorX || window.innerWidth / 2,
-            y: cursorY || window.innerHeight / 2,
+            x: cursorRef.current.x || window.innerWidth / 2,
+            y: cursorRef.current.y || window.innerHeight / 2,
           });
         }
+        visibleRef.current = true;
         setIsVisible(true);
       }
-    }, 800);
+    }, 1000);
 
     return () => {
       window.removeEventListener('mousemove', handleMove);
@@ -55,7 +67,7 @@ export const SecretWhispers: React.FC<SecretWhispersProps> = ({ cursorX, cursorY
       window.removeEventListener('scroll', handleMove);
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [cursorX, cursorY, isVisible]);
+  }, []);
 
   if (!activeWhisper) return null;
 

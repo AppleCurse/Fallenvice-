@@ -14,8 +14,8 @@ export const ManifestoVurgusu: React.FC<ManifestoVurgusuProps> = ({
   accentWord,
   scale = 'large',
 }) => {
-  const [isIgnited, setIsIgnited] = useState(true);
-  const [hasInteracted, setHasInteracted] = useState(true);
+  const [isIgnited, setIsIgnited] = useState(false);
+  const [hasInteracted, setHasInteracted] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   // Trigger illumination when light sweeps nearby

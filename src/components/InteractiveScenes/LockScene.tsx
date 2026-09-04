@@ -4,15 +4,18 @@ import { soundEngine } from '../../audio/soundEngine';
 export const LockScene: React.FC = () => {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const unlockTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            setTimeout(() => {
+            if (unlockTimeoutRef.current) return;
+            unlockTimeoutRef.current = window.setTimeout(() => {
               setIsUnlocked(true);
               soundEngine.playLockSound();
+              unlockTimeoutRef.current = null;
             }, 600);
           } else {
             setIsUnlocked(false);
@@ -26,7 +29,13 @@ export const LockScene: React.FC = () => {
       observer.observe(containerRef.current);
     }
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (unlockTimeoutRef.current) {
+        clearTimeout(unlockTimeoutRef.current);
+        unlockTimeoutRef.current = null;
+      }
+    };
   }, []);
 
   const handleToggle = () => {
@@ -34,10 +43,21 @@ export const LockScene: React.FC = () => {
     setIsUnlocked((prev) => !prev);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleToggle();
+    }
+  };
+
   return (
     <div
       ref={containerRef}
       onClick={handleToggle}
+      onKeyDown={handleKeyDown}
+      role="button"
+      tabIndex={0}
+      aria-label="Kilidi değiştir"
       className="kilit-sahne aydinlan my-12 flex flex-col items-center justify-center cursor-pointer group"
       title="Kilide dokun"
     >
