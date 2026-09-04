@@ -6,6 +6,8 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
+    // Relative base so the built site works under sub-paths (GitHub Pages project sites).
+    base: './',
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
