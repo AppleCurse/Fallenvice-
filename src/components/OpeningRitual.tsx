@@ -107,7 +107,8 @@ export const OpeningRitual: React.FC<OpeningRitualProps> = ({ onEnter }) => {
             <span>
               <kbd className="text-[#7a6f60]">⌘K</kbd> dizin
             </span>
-            <span className="hidden sm:inline">metni seç · mühürle</span>
+            <span className="only-fine">metni seç · mühürle</span>
+            <span className="only-coarse">basılı tut · mühürle</span>
           </div>
         </div>
 

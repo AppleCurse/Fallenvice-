@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useRef } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useState, useRef } from 'react';
 import { FloatingEmbersCanvas } from './components/FloatingEmbersCanvas';
 import { AshDissolveCanvas } from './components/AshDissolveCanvas';
 import { SecretWhispers } from './components/SecretWhispers';
@@ -6,8 +6,8 @@ import { ChapterNav } from './components/ChapterNav';
 import { DerinlikCetveli } from './components/DerinlikCetveli';
 import { ManifestoVurgusu } from './components/ManifestoVurgusu';
 import { OpeningRitual } from './components/OpeningRitual';
+import { KapanisMuhru } from './components/KapanisMuhru';
 import { SelectionActions } from './components/SelectionActions';
-import { QuoteCardModal } from './components/QuoteCardModal';
 import { EmptyChairScene } from './components/InteractiveScenes/EmptyChairScene';
 import { LockScene } from './components/InteractiveScenes/LockScene';
 import { TiresScene } from './components/InteractiveScenes/TiresScene';
@@ -15,6 +15,13 @@ import { GravityFallScene } from './components/InteractiveScenes/GravityFallScen
 import { YEDI_OZELLIK, DORT_YASA } from './data/manifesto';
 import { soundEngine } from './audio/soundEngine';
 import { startPointerTracking } from './lib/pointer';
+import { useLongPressSeal } from './hooks/useLongPressSeal';
+
+// Alıntı kartı motoru (Canvas çizimi + font yükleme) yalnızca kullanıcı
+// gerçekten mühürlemek istediğinde indirilir; ilk yükü şişirmez.
+const QuoteCardModal = lazy(() =>
+  import('./components/QuoteCardModal').then((m) => ({ default: m.QuoteCardModal })),
+);
 
 export default function App() {
   const [hasEntered, setHasEntered] = useState(false);
@@ -191,6 +198,17 @@ export default function App() {
     setSeal({ quote, label });
   }, []);
 
+  const handleRestart = useCallback(() => {
+    window.history.replaceState(null, '', window.location.pathname);
+    window.scrollTo({ top: 0, behavior: 'auto' });
+    setActiveChapterId('hero');
+    lastSectionRef.current = '';
+    setHasEntered(false);
+  }, []);
+
+  // Dokunmatikte uzun basış = mühürle (masaüstünde metin seçimi kullanılır)
+  useLongPressSeal(handleSeal, hasEntered);
+
   const handlePhraseClick = (e: React.MouseEvent) => {
     soundEngine.playParchmentRustle(0.6);
     window.dispatchEvent(
@@ -278,7 +296,9 @@ export default function App() {
 
       {/* 10. Alıntı mührü — paylaşılabilir PNG kart */}
       {seal && (
-        <QuoteCardModal quote={seal.quote} label={seal.label} onClose={() => setSeal(null)} />
+        <Suspense fallback={null}>
+          <QuoteCardModal quote={seal.quote} label={seal.label} onClose={() => setSeal(null)} />
+        </Suspense>
       )}
 
       {/* ═══════════ MANIFESTO CHAMBER (DÜNYA) ═══════════ */}
@@ -766,6 +786,8 @@ export default function App() {
               <div
                 key={item.no}
                 onClick={handlePhraseClick}
+                data-seal-text={item.description.join(' ')}
+                data-seal-label={item.title}
                 className="hukum aydinlan pl-8 pr-4 py-4 rounded-xl border-l-2 border-[#b8884a] bg-[#120e0b]/40 hover:border-[#e5a758] hover:bg-[#120e0b]/70 transition-all duration-300 cursor-pointer group"
               >
                 <div className="flex items-baseline justify-between mb-2">
@@ -800,6 +822,8 @@ export default function App() {
               <div
                 key={item.no}
                 onClick={handlePhraseClick}
+                data-seal-text={item.description.join(' ')}
+                data-seal-label={item.title}
                 className="hukum aydinlan pl-8 pr-4 py-4 rounded-xl border-l-2 border-[#b8884a] bg-[#120e0b]/40 hover:border-[#e5a758] hover:bg-[#120e0b]/70 transition-all duration-300 cursor-pointer group"
               >
                 <div className="flex items-baseline justify-between mb-2">
@@ -988,15 +1012,7 @@ export default function App() {
             scale="massive"
           />
 
-          <div className="mt-24">
-            <div className="unicase text-2xl sm:text-3xl font-light tracking-[0.6em] text-[#e5a758] drop-shadow-[0_0_20px_rgba(229,167,88,0.3)]">
-              SALİM GÜMÜŞ
-            </div>
-            <div className="w-16 h-px bg-[#b8884a] mx-auto mt-4" />
-            <div className="inter-ui text-[10px] uppercase tracking-[0.6em] text-[#c5a26f] mt-3 font-mono">
-              — SON —
-            </div>
-          </div>
+          <KapanisMuhru onSeal={handleSeal} onRestart={handleRestart} />
         </section>
       </main>
     </div>

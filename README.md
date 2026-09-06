@@ -19,9 +19,10 @@ Sunucusuz, hesapsız, izlemesiz. Tek bir ağ isteği yapmaz — fontlar dışın
 | **Kor & Kül** | Canvas üzerinde süzülen kor parçacıkları; geçilen cümleler arkadan kül savurur |
 | **Prosedürel Ses** | Rüzgâr, 55 Hz drone, çıtırtı, uzak çan, parşömen hışırtısı, kilit mekanizması — **tamamı Web Audio ile kodla üretilir**, tek bir ses dosyası yok |
 | **Derinlik Cetveli** | Sağ kenarda gerçek DOM ölçümüyle çalışan okuma cetveli; bölümlere ışınlanma |
-| **Alıntı Mührü** | Herhangi bir cümleyi seç → paylaşılabilir PNG kart üret. Tamamen tarayıcıda çizilir |
+| **Alıntı Mührü** | Masaüstünde cümleyi seç, telefonda pasaja basılı tut → paylaşılabilir PNG kart. Tamamen tarayıcıda çizilir |
 | **Komut Paleti** | `⌘K` / `Ctrl+K` ile bölüm dizini; ok tuşlarıyla gez, `Enter` ile atla |
 | **Derin Bağlantı** | Okudukça adres çubuğu güncellenir; `#kapi-8` gibi bağlantılar doğrudan o kapıyı açar |
+| **Kapanış Mührü** | Son sahnede manifestoyu mühürle ya da odayı baştan ateşle |
 
 ### Etkileşimli Sahneler
 - 🔥 **Yerçekimi Sahnesi** — harfler yerçekimiyle yerine düşer; tıklayınca yeniden tetiklenir
@@ -37,7 +38,8 @@ Sunucusuz, hesapsız, izlemesiz. Tek bir ağ isteği yapmaz — fontlar dışın
 | `M` | Atmosferik ses aç/kapa |
 | `⌘K` / `Ctrl+K` | Bölüm dizinini aç (ok tuşları + `Enter`) |
 | `Esc` | Dizini / mühür kartını kapatır |
-| **Metni seç** | Üstte beliren araç çubuğundan **Mühürle** ya da kopyala |
+| **Metni seç** (masaüstü) | Üstte beliren araç çubuğundan **Mühürle** ya da kopyala |
+| **Basılı tut** (dokunmatik) | Pasaja ~0.5 sn bas → mühür kartı açılır (titreşimli geri bildirim) |
 | Fare imleci | Kor noktası + fener ışığı |
 | Boşta bekleme | ~5 sn sonra karanlıktan bir "fısıltı" yükselir |
 
@@ -62,13 +64,15 @@ src/
 │   ├── pointer.ts               # Render tetiklemeyen paylaşımlı imleç takibi
 │   └── quoteCard.ts             # Canvas ile paylaşılabilir PNG alıntı kartı
 ├── hooks/
-│   └── useInView.ts             # Tekrar kullanılabilir IntersectionObserver
+│   ├── useInView.ts             # Tekrar kullanılabilir IntersectionObserver
+│   └── useLongPressSeal.ts      # Dokunmatikte uzun basış ile mühürleme
 └── components/
     ├── OpeningRitual.tsx        # Kibrit ateşleme açılışı (ses kilidini açar)
     ├── ChapterNav.tsx           # Üst bar: ses, fener, ilerleme, aktif bölüm
     ├── CommandPalette.tsx       # ⌘K dizini — klavye öncelikli, odak hapsi
     ├── SelectionActions.tsx     # Metin seçince beliren mühürleme araç çubuğu
-    ├── QuoteCardModal.tsx       # Kart önizleme + indir / paylaş
+    ├── QuoteCardModal.tsx       # Kart önizleme + indir / paylaş (lazy yüklenir)
+    ├── KapanisMuhru.tsx         # Final: mühürle ya da baştan ateşle
     ├── DerinlikCetveli.tsx      # DOM ölçümlü ilerleme cetveli
     ├── ManifestoVurgusu.tsx     # "Dokunarak aydınlat" vurgu kartları
     ├── SecretWhispers.tsx       # Boşta kalınca beliren fısıltılar
@@ -83,6 +87,8 @@ src/
 - Vurgu kartları yakınlık hesabı için `IntersectionObserver` kullanır — her fare
   hareketinde `getBoundingClientRect()` çağrılmaz (zorunlu layout yok).
 - Canvas'lar en fazla 2x DPR ile çizilir; kül motoru parçacık yokken durur.
+- Alıntı kartı motoru ayrı bir chunk'tır (`React.lazy`) — ilk yüke girmez,
+  yalnızca kullanıcı gerçekten mühürlediğinde indirilir.
 
 ### Erişilebilirlik
 - `prefers-reduced-motion`: gren, paralaks, parçacık animasyonları ve otomatik kül

@@ -233,6 +233,40 @@ html {
   scroll-padding-top: 6rem;
 }
 
+/* ═══ Pointer-aware Hints ═══ */
+.only-fine,
+.only-coarse {
+  display: none;
+}
+
+@media (pointer: fine) {
+  .only-fine {
+    display: inline;
+  }
+}
+
+@media (pointer: coarse) {
+  .only-coarse {
+    display: inline;
+  }
+
+  /* Dokunmatikte mühürleme uzun basışla yapılır; iOS'un kendi
+     "kopyala/ara" balonu araya girmesin. */
+  .soz,
+  .hukum,
+  .vurgu-kapsayici {
+    -webkit-touch-callout: none;
+  }
+
+  /* Uzun basış sırasında pasajın hafifçe çökmesi — dokunsal geri bildirim */
+  .soz:active,
+  .hukum:active,
+  .vurgu-kapsayici:active {
+    transform: scale(0.988);
+    transition: transform 180ms ease;
+  }
+}
+
 /* ═══ Reduced Motion Respect ═══ */
 @media (prefers-reduced-motion: reduce) {
   .aydinlan {

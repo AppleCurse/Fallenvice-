@@ -58,6 +58,8 @@ export const ManifestoVurgusu: React.FC<ManifestoVurgusuProps> = ({
   return (
     <div
       ref={ref}
+      data-seal-text={phrase}
+      data-seal-label={accentWord}
       className="vurgu-kapsayici my-12 relative group max-w-3xl mx-auto px-4"
     >
       {/* Top Ember Glow Line */}
