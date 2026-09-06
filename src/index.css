@@ -214,6 +214,25 @@
   color: #fff8ee;
 }
 
+/* ═══ Selection Toolbar Entrance ═══ */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-100% + 8px));
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -100%);
+  }
+}
+
+/* ═══ Deep-link & Anchor Behaviour ═══ */
+html {
+  scroll-behavior: smooth;
+  /* Sabit üst bar bölüm başlıklarını kesmesin */
+  scroll-padding-top: 6rem;
+}
+
 /* ═══ Reduced Motion Respect ═══ */
 @media (prefers-reduced-motion: reduce) {
   .aydinlan {

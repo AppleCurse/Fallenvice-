@@ -4,6 +4,8 @@
 
 Kurgusal karakter **Salim Gümüş**'ün karanlık atmosferli, interaktif karakter manifestosu. Bir belge değil; kibrit çakarak girilen, fenerle gezilen, kulakla dinlenen bir **monolog deneyimi**.
 
+Sunucusuz, hesapsız, izlemesiz. Tek bir ağ isteği yapmaz — fontlar dışında.
+
 ---
 
 ## 🕯 Deneyim
@@ -17,11 +19,14 @@ Kurgusal karakter **Salim Gümüş**'ün karanlık atmosferli, interaktif karakt
 | **Kor & Kül** | Canvas üzerinde süzülen kor parçacıkları; geçilen cümleler arkadan kül savurur |
 | **Prosedürel Ses** | Rüzgâr, 55 Hz drone, çıtırtı, uzak çan, parşömen hışırtısı, kilit mekanizması — **tamamı Web Audio ile kodla üretilir**, tek bir ses dosyası yok |
 | **Derinlik Cetveli** | Sağ kenarda gerçek DOM ölçümüyle çalışan okuma cetveli; bölümlere ışınlanma |
+| **Alıntı Mührü** | Herhangi bir cümleyi seç → paylaşılabilir PNG kart üret. Tamamen tarayıcıda çizilir |
+| **Komut Paleti** | `⌘K` / `Ctrl+K` ile bölüm dizini; ok tuşlarıyla gez, `Enter` ile atla |
+| **Derin Bağlantı** | Okudukça adres çubuğu güncellenir; `#kapi-8` gibi bağlantılar doğrudan o kapıyı açar |
 
 ### Etkileşimli Sahneler
 - 🔥 **Yerçekimi Sahnesi** — harfler yerçekimiyle yerine düşer; tıklayınca yeniden tetiklenir
 - 🪑 **Boş İskemle** — dokun, sandalyeyi çek, makamı hazırla
-- 🔒 **Kilit Sahnesi** — view girince kilit kendiliginden değişir
+- 🔒 **Kilit Sahnesi** — view girince kilit kendiliğinden değişir
 - 🛞 **Dört Lastik** — 4 lastik, 3'er bijon, sıfır yolda kalma
 
 ## ⌨ Kontroller
@@ -30,17 +35,19 @@ Kurgusal karakter **Salim Gümüş**'ün karanlık atmosferli, interaktif karakt
 |---|---|
 | `L` | Fener modu aç/kapa |
 | `M` | Atmosferik ses aç/kapa |
-| Fare imleci | Kor noktası + fener ışığı + duman izi |
+| `⌘K` / `Ctrl+K` | Bölüm dizinini aç (ok tuşları + `Enter`) |
+| `Esc` | Dizini / mühür kartını kapatır |
+| **Metni seç** | Üstte beliren araç çubuğundan **Mühürle** ya da kopyala |
+| Fare imleci | Kor noktası + fener ışığı |
 | Boşta bekleme | ~5 sn sonra karanlıktan bir "fısıltı" yükselir |
-| `Esc` | Bölüm dizinini kapatır |
 
 ## 🏗 Teknoloji
 
-- **React 19 + Vite 6 + TypeScript** — katı tip kontrolü (`npm run lint`)
+- **React 19 + Vite 6 + TypeScript** — `strict: true`, `npm run lint` ile sıfır hata
 - **Tailwind CSS 4** — tasarım sistemi: `--void`, `--bone`, `--ember-bright`
 - **Web Audio API** — `src/audio/soundEngine.ts`, prosedürel ses sentezi
-- **Canvas 2D** — kor/kül parçacık motorları (DPR ölçekli, talebe bağlı render döngüsü)
-- **IntersectionObserver** — aydınlanma (scroll-reveal) koreografisi ve sahne tetikleyicileri
+- **Canvas 2D** — kor/kül parçacık motorları ve alıntı kartı üreteci (DPR en fazla 2x)
+- **IntersectionObserver** — aydınlanma koreografisi, sahne tetikleyicileri, aktif bölüm takibi
 
 ### Mimari
 
@@ -51,9 +58,17 @@ src/
 ├── audio/soundEngine.ts         # Prosedürel Web Audio motoru (tekil)
 ├── data/manifesto.ts            # Bölüm indeksi, yedi özellik, dört yasa, fısıltılar
 ├── types.ts                     # Paylaşılan arayüzler
+├── lib/
+│   ├── pointer.ts               # Render tetiklemeyen paylaşımlı imleç takibi
+│   └── quoteCard.ts             # Canvas ile paylaşılabilir PNG alıntı kartı
+├── hooks/
+│   └── useInView.ts             # Tekrar kullanılabilir IntersectionObserver
 └── components/
     ├── OpeningRitual.tsx        # Kibrit ateşleme açılışı (ses kilidini açar)
-    ├── ChapterNav.tsx           # Üst bar: ses, fener, dizin modalı (aramalı)
+    ├── ChapterNav.tsx           # Üst bar: ses, fener, ilerleme, aktif bölüm
+    ├── CommandPalette.tsx       # ⌘K dizini — klavye öncelikli, odak hapsi
+    ├── SelectionActions.tsx     # Metin seçince beliren mühürleme araç çubuğu
+    ├── QuoteCardModal.tsx       # Kart önizleme + indir / paylaş
     ├── DerinlikCetveli.tsx      # DOM ölçümlü ilerleme cetveli
     ├── ManifestoVurgusu.tsx     # "Dokunarak aydınlat" vurgu kartları
     ├── SecretWhispers.tsx       # Boşta kalınca beliren fısıltılar
@@ -62,11 +77,24 @@ src/
     └── InteractiveScenes/       # Kilit, iskemle, lastikler, yerçekimi
 ```
 
-### Erişilebilirlik & Performans Notları
-- `prefers-reduced-motion` desteklenir: gren, paralaks, parçacık animasyonları ve otomatik kül patlamaları kapanır
-- Canvas'lar 2x DPR ile çizilir; kül motoru boşta çalışmaz
-- Sahneler klavyeden erişilebilir (`role="button"`, `Enter`/`Space`)
-- Dizin modalı `Esc` + arka plan tıklamasıyla kapanır, `aria-modal`
+### Performans Notları
+- **İmleç React state'i dışında takip edilir.** Koordinat doğrudan `--mx` / `--my` CSS
+  değişkenlerine yazılır; fare hareketi hiçbir bileşeni yeniden render etmez.
+- Vurgu kartları yakınlık hesabı için `IntersectionObserver` kullanır — her fare
+  hareketinde `getBoundingClientRect()` çağrılmaz (zorunlu layout yok).
+- Canvas'lar en fazla 2x DPR ile çizilir; kül motoru parçacık yokken durur.
+
+### Erişilebilirlik
+- `prefers-reduced-motion`: gren, paralaks, parçacık animasyonları ve otomatik kül
+  patlamaları kapanır; yumuşak kaydırma devre dışı kalır
+- Dizin `Esc` + arka plan tıklamasıyla kapanır, `aria-modal`, odak hapsi ve
+  kapanışta odağı tetikleyen düğmeye geri verir
+- Sahneler klavyeden erişilebilir (`role="button"` + `Enter`/`Space`, ya da native `<button>`)
+- Tüm etkileşimli öğelerde görünür `:focus-visible` halkası
+
+### Gizlilik
+Analytics yok, çerez yok, `localStorage` yok, sunucu yok. Alıntı kartı bile
+tarayıcıda üretilir — hiçbir metin cihazdan çıkmaz.
 
 ## 🚀 Geliştirme
 
@@ -74,7 +102,7 @@ src/
 npm install
 npm run dev      # http://localhost:3000
 npm run build    # dist/ üretimi
-npm run lint     # tsc --noEmit
+npm run lint     # tsc --noEmit (strict)
 ```
 
 ---

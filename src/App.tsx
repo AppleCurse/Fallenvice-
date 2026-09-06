@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import { FloatingEmbersCanvas } from './components/FloatingEmbersCanvas';
 import { AshDissolveCanvas } from './components/AshDissolveCanvas';
 import { SecretWhispers } from './components/SecretWhispers';
@@ -6,30 +6,27 @@ import { ChapterNav } from './components/ChapterNav';
 import { DerinlikCetveli } from './components/DerinlikCetveli';
 import { ManifestoVurgusu } from './components/ManifestoVurgusu';
 import { OpeningRitual } from './components/OpeningRitual';
+import { SelectionActions } from './components/SelectionActions';
+import { QuoteCardModal } from './components/QuoteCardModal';
 import { EmptyChairScene } from './components/InteractiveScenes/EmptyChairScene';
 import { LockScene } from './components/InteractiveScenes/LockScene';
 import { TiresScene } from './components/InteractiveScenes/TiresScene';
 import { GravityFallScene } from './components/InteractiveScenes/GravityFallScene';
 import { YEDI_OZELLIK, DORT_YASA } from './data/manifesto';
 import { soundEngine } from './audio/soundEngine';
+import { startPointerTracking } from './lib/pointer';
 
 export default function App() {
   const [hasEntered, setHasEntered] = useState(false);
   const [readingProgress, setReadingProgress] = useState(0);
   const [lanternMode, setLanternMode] = useState(false);
   const [isAudioOn, setIsAudioOn] = useState(false);
+  const [activeChapterId, setActiveChapterId] = useState('hero');
+  const [seal, setSeal] = useState<{ quote: string; label?: string } | null>(null);
   const [finePointer, setFinePointer] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches,
   );
-  const [cursorPos, setCursorPos] = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
   const [isCursorLarge, setIsCursorLarge] = useState(false);
-
-  const coordsRef = useRef({
-    mx: window.innerWidth / 2,
-    my: window.innerHeight / 2,
-    sx: window.innerWidth / 2,
-    sy: window.innerHeight / 2,
-  });
 
   // React to pointer-type changes (desktop ↔ touch) instead of a stale render-time check
   useEffect(() => {
@@ -39,46 +36,10 @@ export default function App() {
     return () => mq.removeEventListener('change', handler);
   }, []);
 
-  // Track cursor and smooth interpolation for lantern
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      coordsRef.current.mx = e.clientX;
-      coordsRef.current.my = e.clientY;
-      setCursorPos({ x: e.clientX, y: e.clientY });
-    };
+  // Imleç takibi React state'i dışında yürür: koordinat doğrudan CSS custom
+  // property'lerine yazılır, böylece fare hareketi hiçbir render tetiklemez.
+  useEffect(() => startPointerTracking(), []);
 
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length > 0) {
-        coordsRef.current.mx = e.touches[0].clientX;
-        coordsRef.current.my = e.touches[0].clientY;
-        setCursorPos({ x: e.touches[0].clientX, y: e.touches[0].clientY });
-      }
-    };
-
-    window.addEventListener('mousemove', handleMouseMove, { passive: true });
-    window.addEventListener('touchmove', handleTouchMove, { passive: true });
-
-    let animationFrameId: number;
-
-    const updateSmoothCoords = () => {
-      const c = coordsRef.current;
-      c.sx += (c.mx - c.sx) * 0.14;
-      c.sy += (c.my - c.sy) * 0.14;
-
-      document.documentElement.style.setProperty('--mx', `${c.sx}px`);
-      document.documentElement.style.setProperty('--my', `${c.sy}px`);
-
-      animationFrameId = requestAnimationFrame(updateSmoothCoords);
-    };
-
-    updateSmoothCoords();
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('touchmove', handleTouchMove);
-      cancelAnimationFrame(animationFrameId);
-    };
-  }, []);
 
   // Track scroll progress for reading wick (fitil) + feed parallax ghost layers
   useEffect(() => {
@@ -125,7 +86,8 @@ export default function App() {
     return () => observer.disconnect();
   }, [hasEntered]);
 
-  // Track chapters/doors visibility for subtle parchment rustle atmospheric sound
+  // Track chapters/doors visibility: drives the active-chapter label, the URL
+  // hash (deep linking) and a subtle parchment rustle on transitions.
   const lastSectionRef = useRef<string>('');
   const lastSoundTimeRef = useRef<number>(0);
 
@@ -142,10 +104,17 @@ export default function App() {
           if (entry.isIntersecting) {
             const id = entry.target.id;
             const now = Date.now();
-            if (id && id !== lastSectionRef.current && now - lastSoundTimeRef.current > 750) {
+            if (id && id !== lastSectionRef.current) {
+              setActiveChapterId(id);
+              // Adres çubuğunu geçmişi kirletmeden güncelle — bölüm bağlantısı
+              // paylaşılabilir olur, geri tuşu sayfayı terk etmeye devam eder.
+              window.history.replaceState(null, '', `#${id}`);
+
+              if (now - lastSoundTimeRef.current > 750) {
+                lastSoundTimeRef.current = now;
+                soundEngine.playParchmentRustle(0.9);
+              }
               lastSectionRef.current = id;
-              lastSoundTimeRef.current = now;
-              soundEngine.playParchmentRustle(0.9);
             }
           }
         });
@@ -196,18 +165,31 @@ export default function App() {
     setHasEntered(true);
     // Opening ritual ignites audio on user gesture; sync indicator state.
     setIsAudioOn(soundEngine.getIsPlaying());
-    window.scrollTo({ top: 0 });
-  };
 
-  const handleSelectChapter = (id: string) => {
-    const el = document.getElementById(id);
+    // Derin bağlantıyla gelindiyse (ör. .../#kapi-8) o kapıya git.
+    const target = window.location.hash.slice(1);
+    const el = target ? document.getElementById(target) : null;
     if (el) {
-      soundEngine.playParchmentRustle(1.15);
-      lastSectionRef.current = id;
-      lastSoundTimeRef.current = Date.now();
-      el.scrollIntoView({ behavior: 'smooth' });
+      el.scrollIntoView({ behavior: 'auto' });
+      setActiveChapterId(target);
+    } else {
+      window.scrollTo({ top: 0 });
     }
   };
+
+  const handleSelectChapter = useCallback((id: string) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    soundEngine.playParchmentRustle(1.15);
+    lastSectionRef.current = id;
+    lastSoundTimeRef.current = Date.now();
+    setActiveChapterId(id);
+    el.scrollIntoView({ behavior: 'smooth' });
+  }, []);
+
+  const handleSeal = useCallback((quote: string, label?: string) => {
+    setSeal({ quote, label });
+  }, []);
 
   const handlePhraseClick = (e: React.MouseEvent) => {
     soundEngine.playParchmentRustle(0.6);
@@ -278,17 +260,26 @@ export default function App() {
       />
 
       {/* 7. Secret Whispers on Idle */}
-      <SecretWhispers cursorX={cursorPos.x} cursorY={cursorPos.y} />
+      <SecretWhispers />
 
       {/* 8. Floating Navigation Bar & Audio Controls */}
       <ChapterNav
         readingProgress={readingProgress}
         lanternMode={lanternMode}
         isAudioOn={isAudioOn}
+        activeChapterId={activeChapterId}
         onToggleAudio={toggleAudio}
         onToggleLantern={() => setLanternMode((prev) => !prev)}
         onSelectChapter={handleSelectChapter}
       />
+
+      {/* 9. Metin seçildiğinde beliren mühürleme araç çubuğu */}
+      {hasEntered && <SelectionActions onSeal={handleSeal} />}
+
+      {/* 10. Alıntı mührü — paylaşılabilir PNG kart */}
+      {seal && (
+        <QuoteCardModal quote={seal.quote} label={seal.label} onClose={() => setSeal(null)} />
+      )}
 
       {/* ═══════════ MANIFESTO CHAMBER (DÜNYA) ═══════════ */}
       <main className="relative z-10 max-w-4xl mx-auto px-6 sm:px-10 py-24 pr-16 sm:pr-24">
@@ -328,6 +319,7 @@ export default function App() {
 
         {/* Manifesto Highlight I */}
         <ManifestoVurgusu
+          onSeal={handleSeal}
           subtext='Siz "ters mi giydi, düz mi giydi" diye düşünürken...'
           phrase="ben şeytana pabucunu giymeyi unutturan adamım."
           accentWord="Şeytan & Pabuç"
@@ -398,6 +390,7 @@ export default function App() {
 
         {/* Manifesto Highlight II */}
         <ManifestoVurgusu
+          onSeal={handleSeal}
           subtext="Korkuyu yatıştırmam. Kökünden sökerim."
           phrase="Ben gelir, o yatağın ayaklarını keserim."
           accentWord="Kökünden Sökmek"
@@ -429,6 +422,7 @@ export default function App() {
 
         {/* Manifesto Highlight III */}
         <ManifestoVurgusu
+          onSeal={handleSeal}
           subtext="Eğer derin bir mezardaysanız..."
           phrase="üzerinize atılan her toprak, ayağınızın altında sizi yukarıya taşıyacaktır."
           accentWord="Toprak & İrade"
@@ -500,6 +494,7 @@ export default function App() {
 
         {/* Manifesto Highlight IV */}
         <ManifestoVurgusu
+          onSeal={handleSeal}
           subtext="Salim Gümüş Yemini:"
           phrase="Çünkü ben sizi yolda bırakmam. ASLA."
           accentWord="Sözün Çeliği"
@@ -586,6 +581,7 @@ export default function App() {
 
         {/* Manifesto Highlight V */}
         <ManifestoVurgusu
+          onSeal={handleSeal}
           subtext="O, şeytanı suçlayanlardan değil..."
           phrase="masasında şeytan için bir iskemle bırakanlardan."
           accentWord="Boş İskemle"
@@ -721,6 +717,7 @@ export default function App() {
 
         {/* Manifesto Highlight VII */}
         <ManifestoVurgusu
+          onSeal={handleSeal}
           subtext="Merkezde görünmez ama merkez odur."
           phrase="O bir kahraman değil, bir yerçekimi."
           accentWord="Kozmik Ağırlık"
@@ -850,6 +847,7 @@ export default function App() {
 
         {/* Manifesto Highlight VIII */}
         <ManifestoVurgusu
+          onSeal={handleSeal}
           subtext="Klişe adam kapıyı çarpar. Salim kapıyı çarpmaz..."
           phrase="Kapı kapalı değildir, KİLİT DEĞİŞMİŞTİR."
           accentWord="Kilit Yasası"
@@ -921,6 +919,7 @@ export default function App() {
 
         {/* Manifesto Highlight IX */}
         <ManifestoVurgusu
+          onSeal={handleSeal}
           subtext="Küsen adam hâlâ bağlıdır. Ayar yapan adam bağını kesmiştir."
           phrase="Bu küslük değil, OMURGA AYARIDIR."
           accentWord="Omurga Yasası"
@@ -954,6 +953,7 @@ export default function App() {
 
         {/* Manifesto Highlight X */}
         <ManifestoVurgusu
+          onSeal={handleSeal}
           subtext="Omuz ağlatır..."
           phrase="Salim omuz vermez. OMURGA VERİR."
           accentWord="Dik Duruş"
@@ -981,6 +981,7 @@ export default function App() {
           </div>
 
           <ManifestoVurgusu
+          onSeal={handleSeal}
             subtext="O yüzden etrafındakiler ona yaslanmaz..."
             phrase="onunla hizalanır."
             accentWord="Hizalanma"

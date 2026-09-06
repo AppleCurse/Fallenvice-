@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { soundEngine } from '../audio/soundEngine';
 
 interface OpeningRitualProps {
@@ -8,6 +8,16 @@ interface OpeningRitualProps {
 export const OpeningRitual: React.FC<OpeningRitualProps> = ({ onEnter }) => {
   const [ignited, setIgnited] = useState(false);
   const [fadedOut, setFadedOut] = useState(false);
+  const timeoutsRef = useRef<number[]>([]);
+
+  // Ritüel tamamlanmadan bileşen sökülürse bekleyen zamanlayıcılar
+  // onEnter'ı unmount sonrası çağırmasın.
+  useEffect(() => {
+    const timeouts = timeoutsRef.current;
+    return () => {
+      timeouts.forEach((id) => window.clearTimeout(id));
+    };
+  }, []);
 
   const handleIgnite = async () => {
     if (ignited) return;
@@ -22,15 +32,16 @@ export const OpeningRitual: React.FC<OpeningRitualProps> = ({ onEnter }) => {
       })
     );
 
-    setTimeout(() => {
-      setFadedOut(true);
-      setTimeout(() => {
-        onEnter();
-      }, 1500);
-    }, 1800);
+    timeoutsRef.current.push(
+      window.setTimeout(() => {
+        setFadedOut(true);
+        timeoutsRef.current.push(window.setTimeout(() => onEnter(), 1500));
+      }, 1800),
+    );
   };
 
   if (fadedOut) return null;
+
 
   return (
     <div
@@ -84,7 +95,22 @@ export const OpeningRitual: React.FC<OpeningRitualProps> = ({ onEnter }) => {
           >
             Ateşe Dokun
           </button>
+
+          {/* Kontrolleri girmeden önce öğret */}
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[9px] inter-ui uppercase tracking-[0.25em] text-[#4e463b]">
+            <span>
+              <kbd className="text-[#7a6f60]">L</kbd> fener
+            </span>
+            <span>
+              <kbd className="text-[#7a6f60]">M</kbd> ses
+            </span>
+            <span>
+              <kbd className="text-[#7a6f60]">⌘K</kbd> dizin
+            </span>
+            <span className="hidden sm:inline">metni seç · mühürle</span>
+          </div>
         </div>
+
       </div>
     </div>
   );
