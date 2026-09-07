@@ -23,6 +23,7 @@ Sunucusuz, hesapsız, izlemesiz. Tek bir ağ isteği yapmaz — fontlar dışın
 | **Komut Paleti** | `⌘K` / `Ctrl+K` ile bölüm dizini; ok tuşlarıyla gez, `Enter` ile atla |
 | **Derin Bağlantı** | Okudukça adres çubuğu güncellenir; `#kapi-8` gibi bağlantılar doğrudan o kapıyı açar |
 | **Kapanış Mührü** | Son sahnede manifestoyu mühürle ya da odayı baştan ateşle |
+| **Çevrimdışı Oda** | Yüklenebilir (PWA); bir kez girdikten sonra internetsiz de açılır |
 
 ### Etkileşimli Sahneler
 - 🔥 **Yerçekimi Sahnesi** — harfler yerçekimiyle yerine düşer; tıklayınca yeniden tetiklenir
@@ -60,12 +61,14 @@ src/
 ├── audio/soundEngine.ts         # Prosedürel Web Audio motoru (tekil)
 ├── data/manifesto.ts            # Bölüm indeksi, yedi özellik, dört yasa, fısıltılar
 ├── types.ts                     # Paylaşılan arayüzler
+├── main.tsx                     # Kök montaj + hata sınırı
 ├── lib/
 │   ├── pointer.ts               # Render tetiklemeyen paylaşımlı imleç takibi
 │   └── quoteCard.ts             # Canvas ile paylaşılabilir PNG alıntı kartı
 ├── hooks/
 │   ├── useInView.ts             # Tekrar kullanılabilir IntersectionObserver
-│   └── useLongPressSeal.ts      # Dokunmatikte uzun basış ile mühürleme
+│   ├── useLongPressSeal.ts      # Dokunmatikte uzun basış ile mühürleme
+│   └── useServiceWorker.ts      # PWA kaydı + güncelleme akışı
 └── components/
     ├── OpeningRitual.tsx        # Kibrit ateşleme açılışı (ses kilidini açar)
     ├── ChapterNav.tsx           # Üst bar: ses, fener, ilerleme, aktif bölüm
@@ -73,6 +76,8 @@ src/
     ├── SelectionActions.tsx     # Metin seçince beliren mühürleme araç çubuğu
     ├── QuoteCardModal.tsx       # Kart önizleme + indir / paylaş (lazy yüklenir)
     ├── KapanisMuhru.tsx         # Final: mühürle ya da baştan ateşle
+    ├── UpdatePrompt.tsx         # "Yeni sürüm hazır" / "çevrimdışı hazır" şeridi
+    ├── ErrorBoundary.tsx        # Beyaz ekran yerine "Kor Söndü" kapanışı
     ├── DerinlikCetveli.tsx      # DOM ölçümlü ilerleme cetveli
     ├── ManifestoVurgusu.tsx     # "Dokunarak aydınlat" vurgu kartları
     ├── SecretWhispers.tsx       # Boşta kalınca beliren fısıltılar
@@ -90,6 +95,16 @@ src/
 - Alıntı kartı motoru ayrı bir chunk'tır (`React.lazy`) — ilk yüke girmez,
   yalnızca kullanıcı gerçekten mühürlediğinde indirilir.
 
+### PWA & Çevrimdışı
+`public/sw.js` elle yazılmış, bağımlılıksız bir service worker:
+- **HTML network-first** — statik barındırmada bayat sayfa servis etme riski yok
+- **`/assets/*` cache-first** — içerik-hash'li oldukları için değişmez kabul edilir
+- **Fontlar stale-while-revalidate**
+- Sürüm değişince eski cache'ler silinir; yeni sürüm hazır olduğunda kullanıcıya
+  sorulur (otomatik yenileme okuma akışını bölmez), onaydan sonra `skipWaiting`
+- `updateViaCache: 'none'` ile SW betiği HTTP önbelleğine takılmaz
+- Geliştirmede kayıt yapılmaz (HMR ile çakışmasın)
+
 ### Erişilebilirlik
 - `prefers-reduced-motion`: gren, paralaks, parçacık animasyonları ve otomatik kül
   patlamaları kapanır; yumuşak kaydırma devre dışı kalır
@@ -97,6 +112,11 @@ src/
   kapanışta odağı tetikleyen düğmeye geri verir
 - Sahneler klavyeden erişilebilir (`role="button"` + `Enter`/`Space`, ya da native `<button>`)
 - Tüm etkileşimli öğelerde görünür `:focus-visible` halkası
+- On kapı, iki kodeks ve kapanış gerçek `<h2>` başlıklarıdır — ekran okuyucu
+  bölüm bölüm gezinebilir; rakamlar dekoratif olarak `aria-hidden`
+- "Manifestoya atla" skip link'i (yalnızca klavye odağında görünür)
+- Render hatasında beyaz ekran yerine kurtarma ekranı (`ErrorBoundary`)
+- `@media print`: atmosfer katmanları kalkar, her kapı yeni sayfadan başlar
 
 ### Gizlilik
 Analytics yok, çerez yok, `localStorage` yok, sunucu yok. Alıntı kartı bile

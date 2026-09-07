@@ -7,6 +7,7 @@ import { DerinlikCetveli } from './components/DerinlikCetveli';
 import { ManifestoVurgusu } from './components/ManifestoVurgusu';
 import { OpeningRitual } from './components/OpeningRitual';
 import { KapanisMuhru } from './components/KapanisMuhru';
+import { UpdatePrompt } from './components/UpdatePrompt';
 import { SelectionActions } from './components/SelectionActions';
 import { EmptyChairScene } from './components/InteractiveScenes/EmptyChairScene';
 import { LockScene } from './components/InteractiveScenes/LockScene';
@@ -16,6 +17,7 @@ import { YEDI_OZELLIK, DORT_YASA } from './data/manifesto';
 import { soundEngine } from './audio/soundEngine';
 import { startPointerTracking } from './lib/pointer';
 import { useLongPressSeal } from './hooks/useLongPressSeal';
+import { useServiceWorker } from './hooks/useServiceWorker';
 
 // Alıntı kartı motoru (Canvas çizimi + font yükleme) yalnızca kullanıcı
 // gerçekten mühürlemek istediğinde indirilir; ilk yükü şişirmez.
@@ -209,6 +211,8 @@ export default function App() {
   // Dokunmatikte uzun basış = mühürle (masaüstünde metin seçimi kullanılır)
   useLongPressSeal(handleSeal, hasEntered);
 
+  const { updateReady, offlineReady, applyUpdate } = useServiceWorker();
+
   const handlePhraseClick = (e: React.MouseEvent) => {
     soundEngine.playParchmentRustle(0.6);
     window.dispatchEvent(
@@ -224,6 +228,14 @@ export default function App() {
         finePointer ? 'cursor-none' : 'cursor-auto'
       }`}
     >
+      {/* Klavye kullanıcıları için: dekoratif katmanları atla */}
+      <a
+        href="#hero"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[300] focus:px-4 focus:py-2 focus:rounded-full focus:bg-[#0c0907] focus:border focus:border-[#b8884a] focus:text-[#e5a758] focus:text-xs focus:inter-ui focus:uppercase focus:tracking-[0.2em]"
+      >
+        Manifestoya atla
+      </a>
+
       {/* 0. Opening Ritual — the match ignition that starts everything (incl. audio) */}
       {!hasEntered && <OpeningRitual onEnter={handleEnter} />}
 
@@ -294,6 +306,9 @@ export default function App() {
       {/* 9. Metin seçildiğinde beliren mühürleme araç çubuğu */}
       {hasEntered && <SelectionActions onSeal={handleSeal} />}
 
+      {/* Yeni sürüm / çevrimdışı hazır bildirimi */}
+      <UpdatePrompt updateReady={updateReady} offlineReady={offlineReady} onApply={applyUpdate} />
+
       {/* 10. Alıntı mührü — paylaşılabilir PNG kart */}
       {seal && (
         <Suspense fallback={null}>
@@ -328,13 +343,13 @@ export default function App() {
         </section>
 
         {/* I. ŞEYTANIN BOYUN EĞMESİ */}
-        <section id="kapi-1" className="kapi aydinlan text-center py-20 sm:py-28">
-          <div className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
+        <section id="kapi-1" className="kapi aydinlan text-center py-20 sm:py-28" aria-labelledby="kapi-1-baslik">
+          <div aria-hidden="true" className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
             I
           </div>
-          <div className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
+          <h2 id="kapi-1-baslik" className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
             Şeytanın Boyun Eğmesi
-          </div>
+          </h2>
         </section>
 
         {/* Manifesto Highlight I */}
@@ -380,13 +395,13 @@ export default function App() {
         </div>
 
         {/* II. YATAĞIN AYAKLARI */}
-        <section id="kapi-2" className="kapi aydinlan text-center py-20 sm:py-28">
-          <div className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
+        <section id="kapi-2" className="kapi aydinlan text-center py-20 sm:py-28" aria-labelledby="kapi-2-baslik">
+          <div aria-hidden="true" className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
             II
           </div>
-          <div className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
+          <h2 id="kapi-2-baslik" className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
             Yatağın Ayakları
-          </div>
+          </h2>
         </section>
 
         <div className="soz aydinlan my-16 text-center max-w-2xl mx-auto">
@@ -427,13 +442,13 @@ export default function App() {
         </div>
 
         {/* III. MEZARDAN YÜKSELİŞ */}
-        <section id="kapi-3" className="kapi aydinlan text-center py-20 sm:py-28">
-          <div className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
+        <section id="kapi-3" className="kapi aydinlan text-center py-20 sm:py-28" aria-labelledby="kapi-3-baslik">
+          <div aria-hidden="true" className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
             III
           </div>
-          <div className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
+          <h2 id="kapi-3-baslik" className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
             Mezardan Yükseliş
-          </div>
+          </h2>
         </section>
 
         <div className="soz aydinlan my-16 text-center max-w-2xl mx-auto">
@@ -463,13 +478,13 @@ export default function App() {
         </div>
 
         {/* IV. ASLA YOLDA BIRAKMAM */}
-        <section id="kapi-4" className="kapi aydinlan text-center py-20 sm:py-28">
-          <div className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
+        <section id="kapi-4" className="kapi aydinlan text-center py-20 sm:py-28" aria-labelledby="kapi-4-baslik">
+          <div aria-hidden="true" className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
             IV
           </div>
-          <div className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
+          <h2 id="kapi-4-baslik" className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
             Asla Yolda Bırakmam
-          </div>
+          </h2>
         </section>
 
         <div
@@ -531,13 +546,13 @@ export default function App() {
         </div>
 
         {/* V. MASADA BİR BOŞ İSKEMLE */}
-        <section id="kapi-5" className="kapi aydinlan text-center py-20 sm:py-28">
-          <div className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
+        <section id="kapi-5" className="kapi aydinlan text-center py-20 sm:py-28" aria-labelledby="kapi-5-baslik">
+          <div aria-hidden="true" className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
             V
           </div>
-          <div className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
+          <h2 id="kapi-5-baslik" className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
             Masada Bir Boş İskemle
-          </div>
+          </h2>
         </section>
 
         <div className="soz aydinlan my-16 text-center max-w-2xl mx-auto">
@@ -683,13 +698,13 @@ export default function App() {
         </div>
 
         {/* VI. SANDALYEDEN MAKAMA */}
-        <section id="kapi-6" className="kapi aydinlan text-center py-20 sm:py-28">
-          <div className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
+        <section id="kapi-6" className="kapi aydinlan text-center py-20 sm:py-28" aria-labelledby="kapi-6-baslik">
+          <div aria-hidden="true" className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
             VI
           </div>
-          <div className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
+          <h2 id="kapi-6-baslik" className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
             Sandalyeden Makama
-          </div>
+          </h2>
         </section>
 
         <div className="soz aydinlan my-16 text-center max-w-2xl mx-auto">
@@ -726,13 +741,13 @@ export default function App() {
         </div>
 
         {/* VII. YERÇEKİMİ */}
-        <section id="kapi-7" className="kapi aydinlan text-center py-20 sm:py-28">
-          <div className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
+        <section id="kapi-7" className="kapi aydinlan text-center py-20 sm:py-28" aria-labelledby="kapi-7-baslik">
+          <div aria-hidden="true" className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
             VII
           </div>
-          <div className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
+          <h2 id="kapi-7-baslik" className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
             Yerçekimi
-          </div>
+          </h2>
         </section>
 
         {/* Manifesto Highlight VII */}
@@ -777,9 +792,9 @@ export default function App() {
 
         {/* YEDİ ÖZELLİK CODEX */}
         <section id="yedi-ozellik" className="py-20 sm:py-28">
-          <div className="hukum-baslik aydinlan text-center unicase text-2xl sm:text-3xl text-[#e5a758] tracking-[0.4em] font-light mb-16 drop-shadow-[0_0_20px_rgba(229,167,88,0.3)]">
+          <h2 className="hukum-baslik aydinlan text-center unicase text-2xl sm:text-3xl text-[#e5a758] tracking-[0.4em] font-light mb-16 drop-shadow-[0_0_20px_rgba(229,167,88,0.3)]">
             — Yedi Özellik —
-          </div>
+          </h2>
 
           <div className="space-y-12 max-w-2xl mx-auto">
             {YEDI_OZELLIK.map((item) => (
@@ -813,9 +828,9 @@ export default function App() {
 
         {/* DÖRT YASA CODEX */}
         <section id="dort-yasa" className="py-20 sm:py-28">
-          <div className="hukum-baslik aydinlan text-center unicase text-2xl sm:text-3xl text-[#e5a758] tracking-[0.4em] font-light mb-16 drop-shadow-[0_0_20px_rgba(229,167,88,0.3)]">
+          <h2 className="hukum-baslik aydinlan text-center unicase text-2xl sm:text-3xl text-[#e5a758] tracking-[0.4em] font-light mb-16 drop-shadow-[0_0_20px_rgba(229,167,88,0.3)]">
             — Dört Yasa —
-          </div>
+          </h2>
 
           <div className="space-y-12 max-w-2xl mx-auto">
             {DORT_YASA.map((item) => (
@@ -848,13 +863,13 @@ export default function App() {
         </section>
 
         {/* VIII. KİLİT DEĞİŞTİ */}
-        <section id="kapi-8" className="kapi aydinlan text-center py-20 sm:py-28">
-          <div className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
+        <section id="kapi-8" className="kapi aydinlan text-center py-20 sm:py-28" aria-labelledby="kapi-8-baslik">
+          <div aria-hidden="true" className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
             VIII
           </div>
-          <div className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
+          <h2 id="kapi-8-baslik" className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
             Kilit Değişti
-          </div>
+          </h2>
         </section>
 
         {/* Interactive SVG Lock Animation */}
@@ -932,13 +947,13 @@ export default function App() {
         </div>
 
         {/* IX. OMURGA AYARI */}
-        <section id="kapi-9" className="kapi aydinlan text-center py-20 sm:py-28">
-          <div className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
+        <section id="kapi-9" className="kapi aydinlan text-center py-20 sm:py-28" aria-labelledby="kapi-9-baslik">
+          <div aria-hidden="true" className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
             IX
           </div>
-          <div className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
+          <h2 id="kapi-9-baslik" className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
             Omurga Ayarı
-          </div>
+          </h2>
         </section>
 
         {/* Manifesto Highlight IX */}
@@ -960,13 +975,13 @@ export default function App() {
         </div>
 
         {/* X. OMUZ VE OMURGA */}
-        <section id="kapi-10" className="kapi aydinlan text-center py-20 sm:py-28">
-          <div className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
+        <section id="kapi-10" className="kapi aydinlan text-center py-20 sm:py-28" aria-labelledby="kapi-10-baslik">
+          <div aria-hidden="true" className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
             X
           </div>
-          <div className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
+          <h2 id="kapi-10-baslik" className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
             Omuz ve Omurga
-          </div>
+          </h2>
         </section>
 
         <div className="soz aydinlan my-16 text-center max-w-2xl mx-auto">
@@ -1000,9 +1015,9 @@ export default function App() {
           onMouseEnter={() => setIsCursorLarge(true)}
           onMouseLeave={() => setIsCursorLarge(false)}
         >
-          <div className="inter-ui text-xs uppercase tracking-[0.6em] text-[#e5a758] mb-8 font-mono font-semibold">
+          <h2 className="inter-ui text-xs uppercase tracking-[0.6em] text-[#e5a758] mb-8 font-mono font-semibold">
             [ MÜHÜR & HAKİKAT ]
-          </div>
+          </h2>
 
           <ManifestoVurgusu
           onSeal={handleSeal}
