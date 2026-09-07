@@ -214,6 +214,59 @@
   color: #fff8ee;
 }
 
+/* ═══ Selection Toolbar Entrance ═══ */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-100% + 8px));
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -100%);
+  }
+}
+
+/* ═══ Deep-link & Anchor Behaviour ═══ */
+html {
+  scroll-behavior: smooth;
+  /* Sabit üst bar bölüm başlıklarını kesmesin */
+  scroll-padding-top: 6rem;
+}
+
+/* ═══ Pointer-aware Hints ═══ */
+.only-fine,
+.only-coarse {
+  display: none;
+}
+
+@media (pointer: fine) {
+  .only-fine {
+    display: inline;
+  }
+}
+
+@media (pointer: coarse) {
+  .only-coarse {
+    display: inline;
+  }
+
+  /* Dokunmatikte mühürleme uzun basışla yapılır; iOS'un kendi
+     "kopyala/ara" balonu araya girmesin. */
+  .soz,
+  .hukum,
+  .vurgu-kapsayici {
+    -webkit-touch-callout: none;
+  }
+
+  /* Uzun basış sırasında pasajın hafifçe çökmesi — dokunsal geri bildirim */
+  .soz:active,
+  .hukum:active,
+  .vurgu-kapsayici:active {
+    transform: scale(0.988);
+    transition: transform 180ms ease;
+  }
+}
+
 /* ═══ Reduced Motion Respect ═══ */
 @media (prefers-reduced-motion: reduce) {
   .aydinlan {
@@ -258,4 +311,73 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #b8884a;
 }
+
+/* ═══ Baskı: karanlık oda yerine temiz bir belge ═══ */
+@media print {
+  /* Atmosfer katmanlarının tamamı kâğıtta anlamsız — ve mürekkep yakar. */
+  .film-grain,
+  .vignette-breath,
+  .parallax-layer,
+  #fener,
+  #kor,
+  #fitil,
+  #gizli-fisil,
+  #acilis,
+  header,
+  aside,
+  canvas,
+  button {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  /* Scroll-reveal baskıda gizli metne yol açmasın. */
+  .aydinlan,
+  .vurgu-kapsayici {
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+
+  main {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .soz,
+  .hukum,
+  .vurgu-kapsayici {
+    color: #111 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin: 1.2rem 0 !important;
+  }
+
+  h1,
+  h2,
+  h3 {
+    color: #000 !important;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  /* Her kapı yeni sayfadan başlasın. */
+  section.kapi {
+    break-before: page;
+    page-break-before: always;
+    padding: 0 !important;
+  }
+
+  section#hero {
+    break-before: auto;
+    page-break-before: avoid;
+  }
+}
+
 

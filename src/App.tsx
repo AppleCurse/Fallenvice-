@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useState, useRef } from 'react';
 import { FloatingEmbersCanvas } from './components/FloatingEmbersCanvas';
 import { AshDissolveCanvas } from './components/AshDissolveCanvas';
 import { SecretWhispers } from './components/SecretWhispers';
@@ -6,30 +6,36 @@ import { ChapterNav } from './components/ChapterNav';
 import { DerinlikCetveli } from './components/DerinlikCetveli';
 import { ManifestoVurgusu } from './components/ManifestoVurgusu';
 import { OpeningRitual } from './components/OpeningRitual';
+import { KapanisMuhru } from './components/KapanisMuhru';
+import { UpdatePrompt } from './components/UpdatePrompt';
+import { SelectionActions } from './components/SelectionActions';
 import { EmptyChairScene } from './components/InteractiveScenes/EmptyChairScene';
 import { LockScene } from './components/InteractiveScenes/LockScene';
 import { TiresScene } from './components/InteractiveScenes/TiresScene';
 import { GravityFallScene } from './components/InteractiveScenes/GravityFallScene';
 import { YEDI_OZELLIK, DORT_YASA } from './data/manifesto';
 import { soundEngine } from './audio/soundEngine';
+import { startPointerTracking } from './lib/pointer';
+import { useLongPressSeal } from './hooks/useLongPressSeal';
+import { useServiceWorker } from './hooks/useServiceWorker';
+
+// Alıntı kartı motoru (Canvas çizimi + font yükleme) yalnızca kullanıcı
+// gerçekten mühürlemek istediğinde indirilir; ilk yükü şişirmez.
+const QuoteCardModal = lazy(() =>
+  import('./components/QuoteCardModal').then((m) => ({ default: m.QuoteCardModal })),
+);
 
 export default function App() {
   const [hasEntered, setHasEntered] = useState(false);
   const [readingProgress, setReadingProgress] = useState(0);
   const [lanternMode, setLanternMode] = useState(false);
   const [isAudioOn, setIsAudioOn] = useState(false);
+  const [activeChapterId, setActiveChapterId] = useState('hero');
+  const [seal, setSeal] = useState<{ quote: string; label?: string } | null>(null);
   const [finePointer, setFinePointer] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(pointer: fine)').matches,
   );
-  const [cursorPos, setCursorPos] = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
   const [isCursorLarge, setIsCursorLarge] = useState(false);
-
-  const coordsRef = useRef({
-    mx: window.innerWidth / 2,
-    my: window.innerHeight / 2,
-    sx: window.innerWidth / 2,
-    sy: window.innerHeight / 2,
-  });
 
   // React to pointer-type changes (desktop ↔ touch) instead of a stale render-time check
   useEffect(() => {
@@ -39,46 +45,10 @@ export default function App() {
     return () => mq.removeEventListener('change', handler);
   }, []);
 
-  // Track cursor and smooth interpolation for lantern
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      coordsRef.current.mx = e.clientX;
-      coordsRef.current.my = e.clientY;
-      setCursorPos({ x: e.clientX, y: e.clientY });
-    };
+  // Imleç takibi React state'i dışında yürür: koordinat doğrudan CSS custom
+  // property'lerine yazılır, böylece fare hareketi hiçbir render tetiklemez.
+  useEffect(() => startPointerTracking(), []);
 
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length > 0) {
-        coordsRef.current.mx = e.touches[0].clientX;
-        coordsRef.current.my = e.touches[0].clientY;
-        setCursorPos({ x: e.touches[0].clientX, y: e.touches[0].clientY });
-      }
-    };
-
-    window.addEventListener('mousemove', handleMouseMove, { passive: true });
-    window.addEventListener('touchmove', handleTouchMove, { passive: true });
-
-    let animationFrameId: number;
-
-    const updateSmoothCoords = () => {
-      const c = coordsRef.current;
-      c.sx += (c.mx - c.sx) * 0.14;
-      c.sy += (c.my - c.sy) * 0.14;
-
-      document.documentElement.style.setProperty('--mx', `${c.sx}px`);
-      document.documentElement.style.setProperty('--my', `${c.sy}px`);
-
-      animationFrameId = requestAnimationFrame(updateSmoothCoords);
-    };
-
-    updateSmoothCoords();
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('touchmove', handleTouchMove);
-      cancelAnimationFrame(animationFrameId);
-    };
-  }, []);
 
   // Track scroll progress for reading wick (fitil) + feed parallax ghost layers
   useEffect(() => {
@@ -125,7 +95,8 @@ export default function App() {
     return () => observer.disconnect();
   }, [hasEntered]);
 
-  // Track chapters/doors visibility for subtle parchment rustle atmospheric sound
+  // Track chapters/doors visibility: drives the active-chapter label, the URL
+  // hash (deep linking) and a subtle parchment rustle on transitions.
   const lastSectionRef = useRef<string>('');
   const lastSoundTimeRef = useRef<number>(0);
 
@@ -142,10 +113,17 @@ export default function App() {
           if (entry.isIntersecting) {
             const id = entry.target.id;
             const now = Date.now();
-            if (id && id !== lastSectionRef.current && now - lastSoundTimeRef.current > 750) {
+            if (id && id !== lastSectionRef.current) {
+              setActiveChapterId(id);
+              // Adres çubuğunu geçmişi kirletmeden güncelle — bölüm bağlantısı
+              // paylaşılabilir olur, geri tuşu sayfayı terk etmeye devam eder.
+              window.history.replaceState(null, '', `#${id}`);
+
+              if (now - lastSoundTimeRef.current > 750) {
+                lastSoundTimeRef.current = now;
+                soundEngine.playParchmentRustle(0.9);
+              }
               lastSectionRef.current = id;
-              lastSoundTimeRef.current = now;
-              soundEngine.playParchmentRustle(0.9);
             }
           }
         });
@@ -196,18 +174,44 @@ export default function App() {
     setHasEntered(true);
     // Opening ritual ignites audio on user gesture; sync indicator state.
     setIsAudioOn(soundEngine.getIsPlaying());
-    window.scrollTo({ top: 0 });
-  };
 
-  const handleSelectChapter = (id: string) => {
-    const el = document.getElementById(id);
+    // Derin bağlantıyla gelindiyse (ör. .../#kapi-8) o kapıya git.
+    const target = window.location.hash.slice(1);
+    const el = target ? document.getElementById(target) : null;
     if (el) {
-      soundEngine.playParchmentRustle(1.15);
-      lastSectionRef.current = id;
-      lastSoundTimeRef.current = Date.now();
-      el.scrollIntoView({ behavior: 'smooth' });
+      el.scrollIntoView({ behavior: 'auto' });
+      setActiveChapterId(target);
+    } else {
+      window.scrollTo({ top: 0 });
     }
   };
+
+  const handleSelectChapter = useCallback((id: string) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    soundEngine.playParchmentRustle(1.15);
+    lastSectionRef.current = id;
+    lastSoundTimeRef.current = Date.now();
+    setActiveChapterId(id);
+    el.scrollIntoView({ behavior: 'smooth' });
+  }, []);
+
+  const handleSeal = useCallback((quote: string, label?: string) => {
+    setSeal({ quote, label });
+  }, []);
+
+  const handleRestart = useCallback(() => {
+    window.history.replaceState(null, '', window.location.pathname);
+    window.scrollTo({ top: 0, behavior: 'auto' });
+    setActiveChapterId('hero');
+    lastSectionRef.current = '';
+    setHasEntered(false);
+  }, []);
+
+  // Dokunmatikte uzun basış = mühürle (masaüstünde metin seçimi kullanılır)
+  useLongPressSeal(handleSeal, hasEntered);
+
+  const { updateReady, offlineReady, applyUpdate } = useServiceWorker();
 
   const handlePhraseClick = (e: React.MouseEvent) => {
     soundEngine.playParchmentRustle(0.6);
@@ -224,6 +228,14 @@ export default function App() {
         finePointer ? 'cursor-none' : 'cursor-auto'
       }`}
     >
+      {/* Klavye kullanıcıları için: dekoratif katmanları atla */}
+      <a
+        href="#hero"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[300] focus:px-4 focus:py-2 focus:rounded-full focus:bg-[#0c0907] focus:border focus:border-[#b8884a] focus:text-[#e5a758] focus:text-xs focus:inter-ui focus:uppercase focus:tracking-[0.2em]"
+      >
+        Manifestoya atla
+      </a>
+
       {/* 0. Opening Ritual — the match ignition that starts everything (incl. audio) */}
       {!hasEntered && <OpeningRitual onEnter={handleEnter} />}
 
@@ -278,17 +290,31 @@ export default function App() {
       />
 
       {/* 7. Secret Whispers on Idle */}
-      <SecretWhispers cursorX={cursorPos.x} cursorY={cursorPos.y} />
+      <SecretWhispers />
 
       {/* 8. Floating Navigation Bar & Audio Controls */}
       <ChapterNav
         readingProgress={readingProgress}
         lanternMode={lanternMode}
         isAudioOn={isAudioOn}
+        activeChapterId={activeChapterId}
         onToggleAudio={toggleAudio}
         onToggleLantern={() => setLanternMode((prev) => !prev)}
         onSelectChapter={handleSelectChapter}
       />
+
+      {/* 9. Metin seçildiğinde beliren mühürleme araç çubuğu */}
+      {hasEntered && <SelectionActions onSeal={handleSeal} />}
+
+      {/* Yeni sürüm / çevrimdışı hazır bildirimi */}
+      <UpdatePrompt updateReady={updateReady} offlineReady={offlineReady} onApply={applyUpdate} />
+
+      {/* 10. Alıntı mührü — paylaşılabilir PNG kart */}
+      {seal && (
+        <Suspense fallback={null}>
+          <QuoteCardModal quote={seal.quote} label={seal.label} onClose={() => setSeal(null)} />
+        </Suspense>
+      )}
 
       {/* ═══════════ MANIFESTO CHAMBER (DÜNYA) ═══════════ */}
       <main className="relative z-10 max-w-4xl mx-auto px-6 sm:px-10 py-24 pr-16 sm:pr-24">
@@ -317,17 +343,18 @@ export default function App() {
         </section>
 
         {/* I. ŞEYTANIN BOYUN EĞMESİ */}
-        <section id="kapi-1" className="kapi aydinlan text-center py-20 sm:py-28">
-          <div className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
+        <section id="kapi-1" className="kapi aydinlan text-center py-20 sm:py-28" aria-labelledby="kapi-1-baslik">
+          <div aria-hidden="true" className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
             I
           </div>
-          <div className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
+          <h2 id="kapi-1-baslik" className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
             Şeytanın Boyun Eğmesi
-          </div>
+          </h2>
         </section>
 
         {/* Manifesto Highlight I */}
         <ManifestoVurgusu
+          onSeal={handleSeal}
           subtext='Siz "ters mi giydi, düz mi giydi" diye düşünürken...'
           phrase="ben şeytana pabucunu giymeyi unutturan adamım."
           accentWord="Şeytan & Pabuç"
@@ -368,13 +395,13 @@ export default function App() {
         </div>
 
         {/* II. YATAĞIN AYAKLARI */}
-        <section id="kapi-2" className="kapi aydinlan text-center py-20 sm:py-28">
-          <div className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
+        <section id="kapi-2" className="kapi aydinlan text-center py-20 sm:py-28" aria-labelledby="kapi-2-baslik">
+          <div aria-hidden="true" className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
             II
           </div>
-          <div className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
+          <h2 id="kapi-2-baslik" className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
             Yatağın Ayakları
-          </div>
+          </h2>
         </section>
 
         <div className="soz aydinlan my-16 text-center max-w-2xl mx-auto">
@@ -398,6 +425,7 @@ export default function App() {
 
         {/* Manifesto Highlight II */}
         <ManifestoVurgusu
+          onSeal={handleSeal}
           subtext="Korkuyu yatıştırmam. Kökünden sökerim."
           phrase="Ben gelir, o yatağın ayaklarını keserim."
           accentWord="Kökünden Sökmek"
@@ -414,13 +442,13 @@ export default function App() {
         </div>
 
         {/* III. MEZARDAN YÜKSELİŞ */}
-        <section id="kapi-3" className="kapi aydinlan text-center py-20 sm:py-28">
-          <div className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
+        <section id="kapi-3" className="kapi aydinlan text-center py-20 sm:py-28" aria-labelledby="kapi-3-baslik">
+          <div aria-hidden="true" className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
             III
           </div>
-          <div className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
+          <h2 id="kapi-3-baslik" className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
             Mezardan Yükseliş
-          </div>
+          </h2>
         </section>
 
         <div className="soz aydinlan my-16 text-center max-w-2xl mx-auto">
@@ -429,6 +457,7 @@ export default function App() {
 
         {/* Manifesto Highlight III */}
         <ManifestoVurgusu
+          onSeal={handleSeal}
           subtext="Eğer derin bir mezardaysanız..."
           phrase="üzerinize atılan her toprak, ayağınızın altında sizi yukarıya taşıyacaktır."
           accentWord="Toprak & İrade"
@@ -449,13 +478,13 @@ export default function App() {
         </div>
 
         {/* IV. ASLA YOLDA BIRAKMAM */}
-        <section id="kapi-4" className="kapi aydinlan text-center py-20 sm:py-28">
-          <div className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
+        <section id="kapi-4" className="kapi aydinlan text-center py-20 sm:py-28" aria-labelledby="kapi-4-baslik">
+          <div aria-hidden="true" className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
             IV
           </div>
-          <div className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
+          <h2 id="kapi-4-baslik" className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
             Asla Yolda Bırakmam
-          </div>
+          </h2>
         </section>
 
         <div
@@ -500,6 +529,7 @@ export default function App() {
 
         {/* Manifesto Highlight IV */}
         <ManifestoVurgusu
+          onSeal={handleSeal}
           subtext="Salim Gümüş Yemini:"
           phrase="Çünkü ben sizi yolda bırakmam. ASLA."
           accentWord="Sözün Çeliği"
@@ -516,13 +546,13 @@ export default function App() {
         </div>
 
         {/* V. MASADA BİR BOŞ İSKEMLE */}
-        <section id="kapi-5" className="kapi aydinlan text-center py-20 sm:py-28">
-          <div className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
+        <section id="kapi-5" className="kapi aydinlan text-center py-20 sm:py-28" aria-labelledby="kapi-5-baslik">
+          <div aria-hidden="true" className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
             V
           </div>
-          <div className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
+          <h2 id="kapi-5-baslik" className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
             Masada Bir Boş İskemle
-          </div>
+          </h2>
         </section>
 
         <div className="soz aydinlan my-16 text-center max-w-2xl mx-auto">
@@ -586,6 +616,7 @@ export default function App() {
 
         {/* Manifesto Highlight V */}
         <ManifestoVurgusu
+          onSeal={handleSeal}
           subtext="O, şeytanı suçlayanlardan değil..."
           phrase="masasında şeytan için bir iskemle bırakanlardan."
           accentWord="Boş İskemle"
@@ -667,13 +698,13 @@ export default function App() {
         </div>
 
         {/* VI. SANDALYEDEN MAKAMA */}
-        <section id="kapi-6" className="kapi aydinlan text-center py-20 sm:py-28">
-          <div className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
+        <section id="kapi-6" className="kapi aydinlan text-center py-20 sm:py-28" aria-labelledby="kapi-6-baslik">
+          <div aria-hidden="true" className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
             VI
           </div>
-          <div className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
+          <h2 id="kapi-6-baslik" className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
             Sandalyeden Makama
-          </div>
+          </h2>
         </section>
 
         <div className="soz aydinlan my-16 text-center max-w-2xl mx-auto">
@@ -710,17 +741,18 @@ export default function App() {
         </div>
 
         {/* VII. YERÇEKİMİ */}
-        <section id="kapi-7" className="kapi aydinlan text-center py-20 sm:py-28">
-          <div className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
+        <section id="kapi-7" className="kapi aydinlan text-center py-20 sm:py-28" aria-labelledby="kapi-7-baslik">
+          <div aria-hidden="true" className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
             VII
           </div>
-          <div className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
+          <h2 id="kapi-7-baslik" className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
             Yerçekimi
-          </div>
+          </h2>
         </section>
 
         {/* Manifesto Highlight VII */}
         <ManifestoVurgusu
+          onSeal={handleSeal}
           subtext="Merkezde görünmez ama merkez odur."
           phrase="O bir kahraman değil, bir yerçekimi."
           accentWord="Kozmik Ağırlık"
@@ -760,15 +792,17 @@ export default function App() {
 
         {/* YEDİ ÖZELLİK CODEX */}
         <section id="yedi-ozellik" className="py-20 sm:py-28">
-          <div className="hukum-baslik aydinlan text-center unicase text-2xl sm:text-3xl text-[#e5a758] tracking-[0.4em] font-light mb-16 drop-shadow-[0_0_20px_rgba(229,167,88,0.3)]">
+          <h2 className="hukum-baslik aydinlan text-center unicase text-2xl sm:text-3xl text-[#e5a758] tracking-[0.4em] font-light mb-16 drop-shadow-[0_0_20px_rgba(229,167,88,0.3)]">
             — Yedi Özellik —
-          </div>
+          </h2>
 
           <div className="space-y-12 max-w-2xl mx-auto">
             {YEDI_OZELLIK.map((item) => (
               <div
                 key={item.no}
                 onClick={handlePhraseClick}
+                data-seal-text={item.description.join(' ')}
+                data-seal-label={item.title}
                 className="hukum aydinlan pl-8 pr-4 py-4 rounded-xl border-l-2 border-[#b8884a] bg-[#120e0b]/40 hover:border-[#e5a758] hover:bg-[#120e0b]/70 transition-all duration-300 cursor-pointer group"
               >
                 <div className="flex items-baseline justify-between mb-2">
@@ -794,15 +828,17 @@ export default function App() {
 
         {/* DÖRT YASA CODEX */}
         <section id="dort-yasa" className="py-20 sm:py-28">
-          <div className="hukum-baslik aydinlan text-center unicase text-2xl sm:text-3xl text-[#e5a758] tracking-[0.4em] font-light mb-16 drop-shadow-[0_0_20px_rgba(229,167,88,0.3)]">
+          <h2 className="hukum-baslik aydinlan text-center unicase text-2xl sm:text-3xl text-[#e5a758] tracking-[0.4em] font-light mb-16 drop-shadow-[0_0_20px_rgba(229,167,88,0.3)]">
             — Dört Yasa —
-          </div>
+          </h2>
 
           <div className="space-y-12 max-w-2xl mx-auto">
             {DORT_YASA.map((item) => (
               <div
                 key={item.no}
                 onClick={handlePhraseClick}
+                data-seal-text={item.description.join(' ')}
+                data-seal-label={item.title}
                 className="hukum aydinlan pl-8 pr-4 py-4 rounded-xl border-l-2 border-[#b8884a] bg-[#120e0b]/40 hover:border-[#e5a758] hover:bg-[#120e0b]/70 transition-all duration-300 cursor-pointer group"
               >
                 <div className="flex items-baseline justify-between mb-2">
@@ -827,13 +863,13 @@ export default function App() {
         </section>
 
         {/* VIII. KİLİT DEĞİŞTİ */}
-        <section id="kapi-8" className="kapi aydinlan text-center py-20 sm:py-28">
-          <div className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
+        <section id="kapi-8" className="kapi aydinlan text-center py-20 sm:py-28" aria-labelledby="kapi-8-baslik">
+          <div aria-hidden="true" className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
             VIII
           </div>
-          <div className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
+          <h2 id="kapi-8-baslik" className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
             Kilit Değişti
-          </div>
+          </h2>
         </section>
 
         {/* Interactive SVG Lock Animation */}
@@ -850,6 +886,7 @@ export default function App() {
 
         {/* Manifesto Highlight VIII */}
         <ManifestoVurgusu
+          onSeal={handleSeal}
           subtext="Klişe adam kapıyı çarpar. Salim kapıyı çarpmaz..."
           phrase="Kapı kapalı değildir, KİLİT DEĞİŞMİŞTİR."
           accentWord="Kilit Yasası"
@@ -910,17 +947,18 @@ export default function App() {
         </div>
 
         {/* IX. OMURGA AYARI */}
-        <section id="kapi-9" className="kapi aydinlan text-center py-20 sm:py-28">
-          <div className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
+        <section id="kapi-9" className="kapi aydinlan text-center py-20 sm:py-28" aria-labelledby="kapi-9-baslik">
+          <div aria-hidden="true" className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
             IX
           </div>
-          <div className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
+          <h2 id="kapi-9-baslik" className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
             Omurga Ayarı
-          </div>
+          </h2>
         </section>
 
         {/* Manifesto Highlight IX */}
         <ManifestoVurgusu
+          onSeal={handleSeal}
           subtext="Küsen adam hâlâ bağlıdır. Ayar yapan adam bağını kesmiştir."
           phrase="Bu küslük değil, OMURGA AYARIDIR."
           accentWord="Omurga Yasası"
@@ -937,13 +975,13 @@ export default function App() {
         </div>
 
         {/* X. OMUZ VE OMURGA */}
-        <section id="kapi-10" className="kapi aydinlan text-center py-20 sm:py-28">
-          <div className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
+        <section id="kapi-10" className="kapi aydinlan text-center py-20 sm:py-28" aria-labelledby="kapi-10-baslik">
+          <div aria-hidden="true" className="unicase text-7xl sm:text-9xl font-light text-[#c5a26f]/70 tracking-widest leading-none drop-shadow-[0_0_35px_rgba(229,167,88,0.25)]">
             X
           </div>
-          <div className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
+          <h2 id="kapi-10-baslik" className="inter-ui text-xs sm:text-sm tracking-[0.6em] text-[#e5a758] uppercase mt-4 font-semibold">
             Omuz ve Omurga
-          </div>
+          </h2>
         </section>
 
         <div className="soz aydinlan my-16 text-center max-w-2xl mx-auto">
@@ -954,6 +992,7 @@ export default function App() {
 
         {/* Manifesto Highlight X */}
         <ManifestoVurgusu
+          onSeal={handleSeal}
           subtext="Omuz ağlatır..."
           phrase="Salim omuz vermez. OMURGA VERİR."
           accentWord="Dik Duruş"
@@ -976,26 +1015,19 @@ export default function App() {
           onMouseEnter={() => setIsCursorLarge(true)}
           onMouseLeave={() => setIsCursorLarge(false)}
         >
-          <div className="inter-ui text-xs uppercase tracking-[0.6em] text-[#e5a758] mb-8 font-mono font-semibold">
+          <h2 className="inter-ui text-xs uppercase tracking-[0.6em] text-[#e5a758] mb-8 font-mono font-semibold">
             [ MÜHÜR & HAKİKAT ]
-          </div>
+          </h2>
 
           <ManifestoVurgusu
+          onSeal={handleSeal}
             subtext="O yüzden etrafındakiler ona yaslanmaz..."
             phrase="onunla hizalanır."
             accentWord="Hizalanma"
             scale="massive"
           />
 
-          <div className="mt-24">
-            <div className="unicase text-2xl sm:text-3xl font-light tracking-[0.6em] text-[#e5a758] drop-shadow-[0_0_20px_rgba(229,167,88,0.3)]">
-              SALİM GÜMÜŞ
-            </div>
-            <div className="w-16 h-px bg-[#b8884a] mx-auto mt-4" />
-            <div className="inter-ui text-[10px] uppercase tracking-[0.6em] text-[#c5a26f] mt-3 font-mono">
-              — SON —
-            </div>
-          </div>
+          <KapanisMuhru onSeal={handleSeal} onRestart={handleRestart} />
         </section>
       </main>
     </div>

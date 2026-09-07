@@ -112,7 +112,7 @@ export const DerinlikCetveli: React.FC<DerinlikCetveliProps> = ({
               <button
                 key={p}
                 onClick={() => chapterMatch && onJumpToTarget(chapterMatch.targetId)}
-                title={chapterMatch ? `%{p}: ${chapterMatch.name}` : `%{p}`}
+                title={chapterMatch ? `%${p} — ${chapterMatch.name}` : `%${p}`}
                 className={`group flex items-center justify-end transition-all ${
                   chapterMatch ? 'cursor-pointer hover:scale-125' : 'cursor-default'
                 }`}
